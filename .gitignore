@@ -1,1 +1,3 @@
 server/node_modules
+ml/venv/
+ml/__pycache__
