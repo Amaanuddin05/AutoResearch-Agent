@@ -3,6 +3,7 @@ import cors from "cors";
 import axios from "axios";
 import fs from "fs";
 import multer from "multer";
+import xml2js from "xml2js";
 import path from "path"; 
 import { fileURLToPath } from "url"; 
 
@@ -42,19 +43,42 @@ app.post("/upload", upload.single("pdf"), async (req, res) => {
 });
 
 app.post("/fetch", async (req, res) => {
-  const { url } = req.body;
   try {
-    if (!url) return res.status(400).json({ error: "Missing PDF URL" });
+    const { category = "cs.AI", max_results = 5 } = req.body;
 
-    const response = await axios.get(url, { responseType: "arraybuffer" });
-    const fileName = path.resolve(__dirname, "paper.pdf");
+    console.log(`📡 Fetching latest papers from arXiv: ${category} (${max_results} results)`);
 
-    fs.writeFileSync(fileName, response.data);
-    console.log(`Downloaded PDF: ${fileName}`);
-    res.json({ message: "PDF downloaded successfully", path: fileName });
-  } catch (error) {
-    console.error("Error fetching paper:", error.message);
-    res.status(500).json({ error: "Failed to fetch paper" });
+    const url = `http://export.arxiv.org/api/query?search_query=cat:${category}&max_results=${max_results}`;
+    const response = await axios.get(url);
+    const xmlData = response.data;
+
+    const parser = new xml2js.Parser({ explicitArray: false });
+    const result = await parser.parseStringPromise(xmlData);
+
+    const entries = result.feed.entry || [];
+
+    const papers = entries.map((entry) => ({
+      title: entry.title.trim(),
+      authors: Array.isArray(entry.author)
+        ? entry.author.map((a) => a.name).join(", ")
+        : entry.author.name,
+      summary: entry.summary.trim(),
+      link: entry.id,
+      pdf_url: Array.isArray(entry.link)
+        ? entry.link.find((l) => l.$.type === "application/pdf")?.$.href || null
+        : null,
+      published: entry.published,
+    }));
+
+    const filePath = path.resolve("fetched_papers.json");
+    fs.writeFileSync(filePath, JSON.stringify(papers, null, 2));
+
+    console.log(`Saved ${papers.length} papers to ${filePath}`);
+
+    res.json({ count: papers.length, papers });
+  } catch (err) {
+    console.error("Error fetching papers:", err.message);
+    res.status(500).json({ error: "Failed to fetch papers" });
   }
 });
 
