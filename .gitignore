@@ -1,3 +1,4 @@
 server/node_modules
 ml/venv/
 ml/__pycache__
+server/uploads
