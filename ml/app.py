@@ -2,15 +2,13 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from langchain_ollama import OllamaLLM
 import fitz  # PyMuPDF
-import os
-import re
-import json
+import os, re, json
 
-app = FastAPI(title="AutoResearch Summarizer Service")
+app = FastAPI(title="AutoResearch Summarizer + Insight Service")
 
 llm = OllamaLLM(
     model="llama3:8b",
-    base_url="http://192.168.1.36:11434" 
+    base_url="http://192.168.1.36:11434"
 )
 
 
@@ -25,8 +23,10 @@ class PDFData(BaseModel):
 
 @app.get("/")
 def root():
-    return {"message": "AutoResearch Summarizer Service running ✅"}
+    return {"message": "AutoResearch Summarizer + Insight Service running ✅"}
 
+
+# =============== 1️⃣ SUMMARIZATION ENDPOINTS ===============
 
 @app.post("/summarize")
 def summarize_text(data: TextData):
@@ -42,10 +42,7 @@ def summarize_text(data: TextData):
 
 @app.post("/structured_summary")
 def summarize_pdf(data: PDFData):
-    """
-    Summarize a full research paper PDF into a structured JSON summary.
-    Handles multi-page documents by splitting text into chunks.
-    """
+    """Summarize a research paper PDF into structured JSON."""
     path = data.path
     metadata = data.metadata or {}
 
@@ -53,9 +50,7 @@ def summarize_pdf(data: PDFData):
         return {"error": "Invalid or missing PDF path"}
 
     doc = fitz.open(path)
-    full_text = ""
-    for page in doc:
-        full_text += page.get_text()
+    full_text = "".join(page.get_text() for page in doc)
     doc.close()
 
     if not full_text.strip():
@@ -63,7 +58,7 @@ def summarize_pdf(data: PDFData):
 
     chunk_size = 4000
     chunks = [full_text[i:i + chunk_size] for i in range(0, len(full_text), chunk_size)]
-    print(f"📄 Total chunks to summarize: {len(chunks)}")
+    print(f"📄 Total chunks: {len(chunks)}")
 
     partial_summaries = []
     for idx, chunk in enumerate(chunks, 1):
@@ -72,65 +67,107 @@ def summarize_pdf(data: PDFData):
         summary = llm.invoke(prompt)
         partial_summaries.append(summary.strip())
 
-    combined_summary_text = "\n".join(partial_summaries)
+    combined_summary = "\n".join(partial_summaries)
     final_prompt = f"""
     You are an expert AI research summarizer.
-
-    Combine all partial summaries into a structured JSON with this exact schema:
+    Combine all partial summaries into this JSON schema:
     {{
-    "abstract": "<2–3 sentence summary of the paper>",
-    "body": [
-        {{
-        "title": "Introduction",
-        "text": "<concise overview of introduction>"
-        }},
-        {{
-        "title": "Methods",
-        "text": "<key methodology details>"
-        }},
-        {{
-        "title": "Results",
-        "text": "<key findings>"
-        }},
-        {{
-        "title": "Discussion",
-        "text": "<insights, implications, or applications>"
-        }},
-        {{
-        "title": "Conclusion",
-        "text": "<summary of final thoughts>"
-        }}
-    ],
-    "meta": {{
-        "title": "{metadata.get('title', '')}",
-        "authors": "{metadata.get('authors', '')}",
-        "pdf_url": "{metadata.get('pdf_url', '')}",
-        "published": "{metadata.get('published', '')}"
+        "abstract": "...",
+        "objectives": ["..."],
+        "methodology": "...",
+        "findings": "...",
+        "limitations": "...",
+        "key_points": ["..."]
     }}
-    }}
-
-    Write only valid JSON. Do not include markdown or commentary.
+    Ensure valid JSON only.
 
     Summaries:
-    {combined_summary_text}
+    {combined_summary}
     """
     final_summary = llm.invoke(final_prompt)
 
     match = re.search(r"\{.*\}", final_summary, re.DOTALL)
-    if match:
-        try:
-            structured = json.loads(match.group(0))
-        except json.JSONDecodeError:
-            structured = {"raw_summary": final_summary}
-    else:
-        structured = {"raw_summary": final_summary}
+    try:
+        summary_json = json.loads(match.group(0)) if match else {"raw_summary": final_summary}
+    except json.JSONDecodeError:
+        summary_json = {"raw_summary": final_summary}
 
-    structured["meta"] = {
+    summary_json["meta"] = {
         "title": metadata.get("title", os.path.basename(path).replace(".pdf", "")),
         "authors": metadata.get("authors", "Unknown"),
         "pdf_url": metadata.get("pdf_url", "N/A"),
         "published": metadata.get("published", "N/A"),
     }
 
-    print(f"Summary generated for: {structured['meta']['title']}")
-    return structured
+    print(f"✅ Summary generated for: {summary_json['meta']['title']}")
+    return summary_json
+
+
+# =============== 2️⃣ INSIGHT AGENT INTEGRATION ===============
+
+class SummaryData(BaseModel):
+    summary: str
+
+
+@app.post("/extract_insights")
+def extract_insights(data: SummaryData):
+    """
+    Extract structured insights (findings, methods, datasets, implications) from summary text.
+    """
+    summary = data.summary.strip()
+    if not summary:
+        return {"error": "Empty summary input"}
+
+    prompt = f"""
+    You are an AI research analyst.
+    Extract the following structured insights from the summary below.
+    Return valid JSON in this schema:
+    {{
+        "findings": ["..."],
+        "methods": ["..."],
+        "datasets": ["..."],
+        "citations": ["..."],
+        "implications": ["..."]
+    }}
+
+    Summary:
+    {summary}
+    """
+    result = llm.invoke(prompt)
+
+    match = re.search(r"\{.*\}", result, re.DOTALL)
+    try:
+        insights = json.loads(match.group(0)) if match else {"raw_output": result}
+    except json.JSONDecodeError:
+        insights = {"raw_output": result}
+
+    return {"insights": insights}
+
+
+# =============== 3️⃣ COMBINED END-TO-END ROUTE ===============
+
+@app.post("/analyze_paper")
+def analyze_paper(data: PDFData):
+    """
+    1. Summarize the paper (structured)
+    2. Extract insights from the summary
+    """
+    print("🚀 Starting full analysis pipeline...")
+    summary_data = summarize_pdf(data)
+    if "error" in summary_data:
+        return summary_data
+
+    # Convert structured summary JSON → plain text summary
+    summary_text = (
+        summary_data.get("abstract", "") + "\n" +
+        summary_data.get("findings", "") + "\n" +
+        " ".join(summary_data.get("key_points", []))
+    )
+
+    # Extract insights from that summary
+    insights = extract_insights(SummaryData(summary=summary_text))["insights"]
+
+    return {
+        "summary": summary_data,
+        "insights": insights
+    }
