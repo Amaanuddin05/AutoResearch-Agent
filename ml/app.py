@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from langchain_ollama import OllamaLLM
 import fitz  # PyMuPDF
 import os, re, json
+from vector_store import add_paper_to_db, query_papers
+
 
 app = FastAPI(title="AutoResearch Summarizer + Insight Service")
 
@@ -167,7 +169,50 @@ def analyze_paper(data: PDFData):
     # Extract insights from that summary
     insights = extract_insights(SummaryData(summary=summary_text))["insights"]
 
+    try:
+        add_paper_to_db(
+            title=summary_data["meta"]["title"],
+            summary=summary_text,
+            insights=insights,
+            metadata=summary_data["meta"]
+        )
+    except Exception as e:
+        print("⚠️ Could not store in ChromaDB:", e)
+
     return {
         "summary": summary_data,
         "insights": insights
     }
+
+class PaperStoreRequest(BaseModel):
+    title: str
+    summary: str
+    insights: dict
+    metadata: dict
+
+@app.post("/store_paper")
+def store_paper(data: PaperStoreRequest):
+    """Store summarized paper + insights in ChromaDB."""
+    try:
+        add_paper_to_db(
+            title=data.title,
+            summary=data.summary,
+            insights=data.insights,
+            metadata=data.metadata,
+        )
+        return {"message": f"Stored '{data.title}' in ChromaDB successfully ✅"}
+    except Exception as e:
+        return {"error": str(e)}
+
+class PaperQueryRequest(BaseModel):
+    query: str
+    n_results: int = 3
+
+@app.post("/search_papers")
+def search_papers(data: PaperQueryRequest):
+    """Retrieve top-N similar research papers."""
+    try:
+        results = query_papers(data.query, data.n_results)
+        return results
+    except Exception as e:
+        return {"error": str(e)}
