@@ -101,40 +101,59 @@ app.post("/fetch_and_summarize", async (req, res) => {
 
     const url = `http://export.arxiv.org/api/query?search_query=cat:${category}&max_results=${max_results}`;
     const response = await axios.get(url);
-    const xml = response.data;
+    const xmlData = response.data;
 
-    const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)];
+    const parser = new xml2js.Parser({ explicitArray: false });
+    const result = await parser.parseStringPromise(xmlData);
+
+    // Normalize entries (array or single)
+    let entries = result.feed.entry || [];
+    if (!Array.isArray(entries)) entries = [entries];
     if (!entries.length) return res.json({ message: "No papers found." });
 
-    const firstBlock = entries[0][1];
-    const title = (firstBlock.match(/<title>([\s\S]*?)<\/title>/) || [])[1]?.trim();
-    const authors = [...firstBlock.matchAll(/<name>(.*?)<\/name>/g)].map((a) => a[1]).join(", ");
-    const pdf_url = (firstBlock.match(/<link title="pdf" href="(.*?)"/) || [])[1];
-    const published = (firstBlock.match(/<published>(.*?)<\/published>/) || [])[1];
+    const entry = entries[0];
+    const title = entry.title?.trim() || "Untitled Paper";
+    const authors = Array.isArray(entry.author)
+      ? entry.author.map((a) => a.name).join(", ")
+      : entry.author?.name || "Unknown";
+    const published = entry.published || "Unknown";
 
-    const paper = { title, authors, pdf_url, published };
+    // Get PDF link safely (same as /fetch)
+    let pdf_url = Array.isArray(entry.link)
+      ? entry.link.find((l) => l.$.type === "application/pdf")?.$.href
+      : entry.link?.$.href || null;
+
+    // fallback if missing pdf_url
+    if (!pdf_url && entry.id) {
+      const idMatch = entry.id.match(/\/abs\/(.*)$/);
+      if (idMatch) pdf_url = `https://arxiv.org/pdf/${idMatch[1]}.pdf`;
+    }
+
+    if (!pdf_url) {
+      console.error("❌ Could not extract PDF URL:", entry);
+      return res.status(400).json({ error: "Could not find PDF URL for this paper" });
+    }
 
     console.log(`📥 Downloading: ${title}`);
     const pdfResponse = await axios.get(pdf_url, { responseType: "arraybuffer" });
-
     const safeTitle = title.replace(/[^\w\s]/g, "_");
     const pdfPath = path.join(UPLOAD_DIR, `${safeTitle}.pdf`);
     fs.writeFileSync(pdfPath, pdfResponse.data);
 
     console.log(`⚙️ Summarizing ${title} ...`);
+    const paper = { title, authors, pdf_url, published };
     const summaryResponse = await axios.post("http://127.0.0.1:8000/structured_summary", {
       path: pdfPath,
       metadata: paper,
     });
 
     const summaryData = summaryResponse.data;
-
     const summaryFile = path.join(SUMMARY_DIR, `${safeTitle}_summary.json`);
     fs.writeFileSync(summaryFile, JSON.stringify(summaryData, null, 2));
 
     const downloadUrl = `http://localhost:5000/download/${encodeURIComponent(path.basename(summaryFile))}`;
+    console.log(`✅ Done: ${title}`);
 
-    console.log(`Done: ${title}`);
     res.json({
       message: "Summary generated successfully",
       paper_title: title,
@@ -142,10 +161,11 @@ app.post("/fetch_and_summarize", async (req, res) => {
       summary: summaryData,
     });
   } catch (err) {
-    console.error("Error:", err.message);
+    console.error("Error in /fetch_and_summarize:", err.message);
     res.status(500).json({ error: "Failed to fetch and summarize paper" });
   }
 });
+
 
 app.get("/download/:fileName", (req, res) => {
   const fileName = req.params.fileName;
