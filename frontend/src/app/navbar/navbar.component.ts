@@ -13,8 +13,8 @@ export class NavbarComponent {
   navLinks = [
     { label: 'Home', path: '/home' },
     { label: 'Fetch', path: '/fetch' },
-    { label: 'Memory Search', path: '/memory-search' },
-    { label: 'History', path: '/history' },
+    { label: 'My Library', path: '/library' },
+    { label: 'History', path: '/research_history' },
     { label: 'Analyze', path: '/analyze' },
     { label: 'Chat', path: '/chat' }
   ];

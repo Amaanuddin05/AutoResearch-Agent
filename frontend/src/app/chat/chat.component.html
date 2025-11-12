@@ -1,1 +1,144 @@
-<p>chat works!</p>
+<div class="chat">
+  <div class="chat__wrapper">
+    <!-- Chat Header -->
+    <div class="chat__header">
+      <h1 class="chat__title">Research Chat</h1>
+      <button 
+        class="chat__header-btn" 
+        (click)="toggleContextSidebar()"
+        [attr.aria-label]="showContextSidebar ? 'Hide context sidebar' : 'Show context sidebar'"
+      >
+        <span class="material-symbols-outlined">library_books</span>
+      </button>
+    </div>
+
+    <div class="chat__content">
+      <!-- Messages Area -->
+      <div class="chat__messages">
+        <div class="chat__messages-list">
+          <div 
+            *ngFor="let message of messages" 
+            class="message"
+            [ngClass]="{
+              'message--user': message.type === 'user',
+              'message--assistant': message.type === 'assistant',
+              'message--thinking': message.type === 'thinking'
+            }"
+          >
+            <!-- User Message -->
+            <ng-container *ngIf="message.type === 'user'">
+              <div class="message__content message__content--user">
+                <div class="message__text-wrapper">
+                  <p class="message__sender">You</p>
+                  <div class="message__bubble message__bubble--user">
+                    <p class="message__text">{{ message.content }}</p>
+                  </div>
+                </div>
+                <div 
+                  class="message__avatar"
+                  [style.background-image]="'url(' + userAvatar + ')'"
+                ></div>
+              </div>
+            </ng-container>
+
+            <!-- Assistant Message -->
+            <ng-container *ngIf="message.type === 'assistant'">
+              <div class="message__content message__content--assistant">
+                <div 
+                  class="message__avatar"
+                  [style.background-image]="'url(' + assistantAvatar + ')'"
+                ></div>
+                <div class="message__text-wrapper">
+                  <p class="message__sender">AI Assistant</p>
+                  <div class="message__bubble message__bubble--assistant">
+                    <p class="message__text">{{ message.content }}</p>
+                  </div>
+                  <button 
+                    *ngIf="message.sources" 
+                    class="message__sources-btn"
+                    (click)="viewSources(message.id)"
+                  >
+                    <span class="material-symbols-outlined">library_books</span>
+                    <span>View {{ message.sources }} sources</span>
+                  </button>
+                </div>
+              </div>
+            </ng-container>
+
+            <!-- Thinking State -->
+            <ng-container *ngIf="message.type === 'thinking'">
+              <div class="message__content message__content--assistant">
+                <div 
+                  class="message__avatar"
+                  [style.background-image]="'url(' + assistantAvatar + ')'"
+                ></div>
+                <div class="message__thinking">
+                  <span class="message__thinking-dot"></span>
+                  <span class="message__thinking-dot"></span>
+                  <span class="message__thinking-dot"></span>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+
+      <!-- Context Sidebar -->
+      <div 
+        class="chat__sidebar" 
+        *ngIf="showContextSidebar"
+      >
+        <div class="chat__sidebar-header">
+          <h2 class="chat__sidebar-title">Context Used</h2>
+          <button 
+            class="chat__sidebar-close"
+            (click)="toggleContextSidebar()"
+            aria-label="Close context sidebar"
+          >
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="chat__sidebar-content">
+          <div 
+            *ngFor="let paper of contextPapers"
+            class="context-card"
+            (click)="viewPaper(paper.id)"
+          >
+            <h3 class="context-card__title">{{ paper.title }}</h3>
+            <p class="context-card__authors">{{ paper.authors }} ({{ paper.year }})</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message Input -->
+    <div class="chat__composer">
+      <div class="chat__input-wrapper">
+        <textarea
+          class="chat__input"
+          [(ngModel)]="userMessage"
+          (keydown)="onKeyDown($event)"
+          placeholder="Ask a question about your research papers..."
+          rows="1"
+        ></textarea>
+        <div class="chat__input-actions">
+          <button 
+            class="chat__input-btn chat__input-btn--secondary"
+            (click)="attachFile()"
+            aria-label="Attach file"
+          >
+            <span class="material-symbols-outlined">attach_file</span>
+          </button>
+          <button 
+            class="chat__input-btn chat__input-btn--primary"
+            (click)="sendMessage()"
+            [disabled]="!userMessage.trim()"
+            aria-label="Send message"
+          >
+            <span class="material-symbols-outlined">arrow_upward</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

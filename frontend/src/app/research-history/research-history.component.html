@@ -1,0 +1,231 @@
+<div class="research-history">
+  <div class="research-history__wrapper">
+    <!-- Page Header -->
+    <div class="research-history__header">
+      <h1 class="research-history__title">My Research Library</h1>
+      <button class="research-history__add-btn" (click)="addNewPaper()">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span>Add New Paper</span>
+      </button>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="research-history__controls">
+      <div class="research-history__search">
+        <span class="material-symbols-outlined research-history__search-icon">search</span>
+        <input
+          type="text"
+          class="research-history__search-input"
+          [(ngModel)]="searchQuery"
+          placeholder="Search by title, author, or keyword..."
+        />
+      </div>
+
+      <div class="research-history__actions">
+        <button class="research-history__action-btn" (click)="openFilterMenu()">
+          <span class="material-symbols-outlined">filter_list</span>
+          <span>Filter</span>
+        </button>
+        <button class="research-history__action-btn" (click)="openSortMenu()">
+          <span class="material-symbols-outlined">swap_vert</span>
+          <span>Sort</span>
+        </button>
+        <div class="research-history__view-toggle">
+          <button
+            class="research-history__view-btn"
+            [class.research-history__view-btn--active]="viewMode === 'table'"
+            (click)="setViewMode('table')"
+            aria-label="Table view"
+          >
+            <span class="material-symbols-outlined">table_rows</span>
+          </button>
+          <button
+            class="research-history__view-btn"
+            [class.research-history__view-btn--active]="viewMode === 'grid'"
+            (click)="setViewMode('grid')"
+            aria-label="Grid view"
+          >
+            <span class="material-symbols-outlined">grid_view</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table View -->
+    <div class="research-history__table-wrapper" *ngIf="viewMode === 'table'">
+      <table class="research-history__table">
+        <thead class="research-history__table-head">
+          <tr>
+            <th class="research-history__table-th research-history__table-th--checkbox">
+              <input
+                type="checkbox"
+                class="research-history__checkbox"
+                [checked]="selectAll"
+                (change)="toggleSelectAll()"
+              />
+            </th>
+            <th class="research-history__table-th research-history__table-th--title">Title</th>
+            <th class="research-history__table-th research-history__table-th--authors">Authors</th>
+            <th class="research-history__table-th research-history__table-th--source">Source</th>
+            <th class="research-history__table-th research-history__table-th--date">Date Added</th>
+            <th class="research-history__table-th research-history__table-th--actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="research-history__table-body">
+          <tr
+            *ngFor="let item of filteredItems"
+            class="research-history__table-row"
+          >
+            <td class="research-history__table-td research-history__table-td--checkbox">
+              <input
+                type="checkbox"
+                class="research-history__checkbox"
+                [checked]="item.selected"
+                (change)="toggleItemSelection(item.id)"
+              />
+            </td>
+            <td class="research-history__table-td research-history__table-td--title">
+              {{ item.title }}
+            </td>
+            <td class="research-history__table-td research-history__table-td--authors">
+              {{ item.authors }}
+            </td>
+            <td class="research-history__table-td research-history__table-td--source">
+              {{ item.source }}
+            </td>
+            <td class="research-history__table-td research-history__table-td--date">
+              {{ item.dateAdded }}
+            </td>
+            <td class="research-history__table-td research-history__table-td--actions">
+              <div class="research-history__table-actions">
+                <button
+                  class="research-history__icon-btn"
+                  (click)="viewPaper(item.id)"
+                  aria-label="View paper"
+                >
+                  <span class="material-symbols-outlined">visibility</span>
+                </button>
+                <button
+                  class="research-history__icon-btn"
+                  (click)="downloadPDF(item.id)"
+                  aria-label="Download PDF"
+                >
+                  <span class="material-symbols-outlined">picture_as_pdf</span>
+                </button>
+                <button
+                  class="research-history__icon-btn research-history__icon-btn--delete"
+                  (click)="deleteItem(item.id)"
+                  aria-label="Delete paper"
+                >
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Grid View -->
+    <div class="research-history__grid" *ngIf="viewMode === 'grid'">
+      <div
+        *ngFor="let item of filteredItems"
+        class="history-card"
+      >
+        <div class="history-card__header">
+          <input
+            type="checkbox"
+            class="research-history__checkbox"
+            [checked]="item.selected"
+            (change)="toggleItemSelection(item.id)"
+          />
+        </div>
+        <div class="history-card__content">
+          <h3 class="history-card__title">{{ item.title }}</h3>
+          <p class="history-card__authors">{{ item.authors }}</p>
+          <div class="history-card__meta">
+            <span class="history-card__source">{{ item.source }}</span>
+            <span class="history-card__date">{{ item.dateAdded }}</span>
+          </div>
+        </div>
+        <div class="history-card__actions">
+          <button
+            class="research-history__icon-btn"
+            (click)="viewPaper(item.id)"
+            aria-label="View paper"
+          >
+            <span class="material-symbols-outlined">visibility</span>
+          </button>
+          <button
+            class="research-history__icon-btn"
+            (click)="downloadPDF(item.id)"
+            aria-label="Download PDF"
+          >
+            <span class="material-symbols-outlined">picture_as_pdf</span>
+          </button>
+          <button
+            class="research-history__icon-btn research-history__icon-btn--delete"
+            (click)="deleteItem(item.id)"
+            aria-label="Delete paper"
+          >
+            <span class="material-symbols-outlined">delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="research-history__pagination">
+      <div class="research-history__pagination-info">
+        Showing {{ paginationStart }} to {{ paginationEnd }} of {{ totalEntries }} entries
+      </div>
+      <nav class="research-history__pagination-nav">
+        <button
+          class="research-history__pagination-btn research-history__pagination-btn--arrow"
+          (click)="previousPage()"
+          [disabled]="currentPage === 1"
+          aria-label="Previous page"
+        >
+          <span class="material-symbols-outlined">chevron_left</span>
+        </button>
+        <button
+          class="research-history__pagination-btn"
+          [class.research-history__pagination-btn--active]="currentPage === 1"
+          (click)="goToPage(1)"
+        >
+          1
+        </button>
+        <button
+          class="research-history__pagination-btn"
+          [class.research-history__pagination-btn--active]="currentPage === 2"
+          (click)="goToPage(2)"
+        >
+          2
+        </button>
+        <button
+          class="research-history__pagination-btn"
+          [class.research-history__pagination-btn--active]="currentPage === 3"
+          (click)="goToPage(3)"
+        >
+          3
+        </button>
+        <span class="research-history__pagination-ellipsis">...</span>
+        <button
+          class="research-history__pagination-btn"
+          [class.research-history__pagination-btn--active]="currentPage === totalPages"
+          (click)="goToPage(totalPages)"
+        >
+          {{ totalPages }}
+        </button>
+        <button
+          class="research-history__pagination-btn research-history__pagination-btn--arrow"
+          (click)="nextPage()"
+          [disabled]="currentPage === totalPages"
+          aria-label="Next page"
+        >
+          <span class="material-symbols-outlined">chevron_right</span>
+        </button>
+      </nav>
+    </div>
+  </div>
+</div>
