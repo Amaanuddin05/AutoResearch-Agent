@@ -1,2 +1,13 @@
 
 @use "tailwindcss";
+body {
+  background: linear-gradient(to bottom, #f8fafc 0%, #ffffff 100%);
+  min-height: 100vh;
+  margin: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(to bottom, #0f172a 0%, #1e293b 100%);
+  }
+}

@@ -1,2 +1,80 @@
+<div class="home">
+  <div class="home__wrapper">
+    <!-- Hero Section -->
+    <div class="home__hero">
+      <div class="home__hero-content">
+        <div class="home__hero-text">
+          <h1 class="home__title">Your AI Research Assistant</h1>
+          <p class="home__subtitle">
+            Effortlessly find, summarize, and manage research papers with the power of AI, 
+            streamlining your workflow and accelerating discovery.
+          </p>
+        </div>
+        <button class="home__cta-button" (click)="searchPapers()">
+          <span>Search Research Papers</span>
+        </button>
+      </div>
+    </div>
 
-<p>home works!</p>
+    <!-- Saved Papers Section -->
+    <div class="home__section">
+      <h2 class="home__section-title">My Saved Papers</h2>
+      
+      <div class="home__papers-grid">
+        <div *ngFor="let paper of savedPapers" class="paper-card">
+          <div class="paper-card__header">
+            <p class="paper-card__title">{{ paper.title }}</p>
+            <p class="paper-card__authors">{{ paper.authors }}</p>
+            <p class="paper-card__year">{{ paper.year }}</p>
+          </div>
+          
+          <p class="paper-card__description">{{ paper.description }}</p>
+          
+          <div class="paper-card__actions">
+            <button class="paper-card__view-btn" (click)="viewSummary(paper.id)">
+              View Summary
+            </button>
+            <button 
+              class="paper-card__icon-btn" 
+              (click)="toggleFavorite(paper.id)"
+              [attr.aria-label]="paper.isFavorite ? 'Remove from favorites' : 'Add to favorites'"
+            >
+              <span class="material-symbols-outlined">
+                {{ paper.isFavorite ? 'favorite' : 'favorite_border' }}
+              </span>
+            </button>
+            <button 
+              class="paper-card__icon-btn" 
+              (click)="deletePaper(paper.id)"
+              aria-label="Delete paper"
+            >
+              <span class="material-symbols-outlined">delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State Section -->
+    <div class="home__section home__section--empty">
+      <h2 class="home__section-title">Example: Empty Library</h2>
+      
+      <div class="home__empty-state">
+        <div class="empty-state">
+          <div class="empty-state__icon">
+            <span class="material-symbols-outlined">inventory_2</span>
+          </div>
+          <div class="empty-state__content">
+            <p class="empty-state__title">Your library is empty</p>
+            <p class="empty-state__description">
+              Start by searching for a paper to save it here.
+            </p>
+          </div>
+          <button class="empty-state__button" (click)="findPaper()">
+            <span>Find a Paper</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
