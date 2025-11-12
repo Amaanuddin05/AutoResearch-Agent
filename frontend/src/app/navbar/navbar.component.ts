@@ -1,14 +1,15 @@
-import { NgFor } from '@angular/common';
+import { NgFor,NgIf } from '@angular/common';
 import { Component } from '@angular/core';
 
 @Component({
   selector: 'app-navbar',
-  imports: [NgFor],
+  imports: [NgFor,NgIf],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.scss'
 })
 export class NavbarComponent {
    isDarkMode = false;
+  isMobileMenuOpen = false;
   
   navLinks = [
     { label: 'Home', path: '/home' },
@@ -23,7 +24,14 @@ export class NavbarComponent {
 
   toggleTheme(): void {
     this.isDarkMode = !this.isDarkMode;
-    // Add your theme toggle logic here
     console.log('Dark mode:', this.isDarkMode);
+  }
+
+  toggleMobileMenu(): void {
+    this.isMobileMenuOpen = !this.isMobileMenuOpen;
+  }
+
+  closeMobileMenu(): void {
+    this.isMobileMenuOpen = false;
   }
 }
