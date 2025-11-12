@@ -73,14 +73,14 @@
         </thead>
         <tbody class="research-history__table-body">
           <tr
-            *ngFor="let item of filteredItems"
+            *ngFor="let item of filteredPapers"
             class="research-history__table-row"
           >
             <td class="research-history__table-td research-history__table-td--checkbox">
               <input
                 type="checkbox"
                 class="research-history__checkbox"
-                [checked]="item.selected"
+                [checked]="item.isSelected"
                 (change)="toggleItemSelection(item.id)"
               />
             </td>
@@ -129,14 +129,14 @@
     <!-- Grid View -->
     <div class="research-history__grid" *ngIf="viewMode === 'grid'">
       <div
-        *ngFor="let item of filteredItems"
+        *ngFor="let item of filteredPapers"
         class="history-card"
       >
         <div class="history-card__header">
           <input
             type="checkbox"
             class="research-history__checkbox"
-            [checked]="item.selected"
+            [checked]="item.isSelected"
             (change)="toggleItemSelection(item.id)"
           />
         </div>

@@ -1,73 +1,60 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-interface Paper {
-  id: string;
-  title: string;
-  authors: string;
-  year: string;
-  description: string;
-  isFavorite: boolean;
-}
+import { RouterModule, Router } from '@angular/router';
+import { Paper, PaperService } from '../services/paper.service';
 
 @Component({
   selector: 'app-home',
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss'
 })
 export class HomeComponent {
-  savedPapers: Paper[] = [
-    {
-      id: '1',
-      title: 'Attention Is All You Need',
-      authors: 'Ashish Vaswani, Noam Shazeer, Niki Parmar...',
-      year: '2017',
-      description: 'The foundational paper introducing the Transformer architecture, a novel network architecture based solely on attention mechanisms, dispensing with recurrence and convolutions entirely...',
-      isFavorite: false
-    },
-    {
-      id: '2',
-      title: 'Generative Adversarial Networks',
-      authors: 'Ian J. Goodfellow, Jean Pouget-Abadie...',
-      year: '2014',
-      description: 'A seminal paper on a class of machine learning frameworks where two neural networks contest with each other in a game. It has been a key driver for recent advances in generative models...',
-      isFavorite: false
-    },
-    {
-      id: '3',
-      title: 'Deep Residual Learning for Image Recognition',
-      authors: 'Kaiming He, Xiangyu Zhang, Shaoqing Ren...',
-      year: '2015',
-      description: 'Introduced the concept of residual networks (ResNets), which ease the training of networks that are substantially deeper than those used previously, leading to significant improvements in image recognition...',
-      isFavorite: false
-    }
-  ];
+   savedPapers: Paper[] = [];
+  isLoading = true;
 
-  searchPapers(): void {
-    console.log('Search papers clicked');
-    // Add navigation or search logic here
+  constructor(private paperService: PaperService, private router: Router) {}
+
+  ngOnInit() {
+    // Load saved papers from ChromaDB
+    this.paperService.loadPapers().subscribe({
+      next: () => {
+        const allPapers = this.paperService.getPapers();
+        this.savedPapers = allPapers.slice(0, 6); // Show up to 6 on home
+        this.isLoading = false;
+      },
+      error: (err) => {
+        console.error('❌ Error loading saved papers:', err);
+        this.isLoading = false;
+      },
+    });
   }
 
+  /** Navigate to detailed view */
   viewSummary(paperId: string): void {
-    console.log('View summary for paper:', paperId);
-    // Add navigation to summary view
+    this.router.navigate(['/analyze', paperId]);
   }
 
+  /** Toggle favorite (for UI only right now) */
   toggleFavorite(paperId: string): void {
     const paper = this.savedPapers.find(p => p.id === paperId);
-    if (paper) {
-      paper.isFavorite = !paper.isFavorite;
+    if (paper) paper.isFavorite = !paper.isFavorite;
+  }
+
+  deletePaper(id: string) {
+  if (!confirm('Are you sure you want to delete this paper permanently?')) return;
+
+  this.paperService.deletePaperFromDB(id).subscribe({
+    next: (res) => {
+      console.log('🗑️', res);
+      // remove from local list immediately
+      this.savedPapers = this.savedPapers.filter(p => p.id !== id);
+    },
+    error: (err) => {
+      console.error('⚠️ Failed to delete paper:', err);
+      alert('Error deleting paper.');
     }
-  }
+  });
+}
 
-  deletePaper(paperId: string): void {
-    this.savedPapers = this.savedPapers.filter(p => p.id !== paperId);
-    console.log('Deleted paper:', paperId);
-  }
-
-  findPaper(): void {
-    console.log('Find paper clicked');
-    // Add navigation or search logic here
-  }
 }

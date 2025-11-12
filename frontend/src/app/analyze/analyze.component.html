@@ -1,11 +1,29 @@
 <div class="analyze">
-  <div class="analyze__wrapper">
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-state">
+    <span class="material-symbols-outlined loading-spinner">progress_activity</span>
+    <p>Loading paper analysis...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="hasError && !isLoading" class="error-state">
+    <span class="material-symbols-outlined error-icon">error</span>
+    <h2>Paper Not Found</h2>
+    <p>The requested paper could not be found.</p>
+    <button class="analyze__button analyze__button--primary" routerLink="/research-history">
+      <span class="material-symbols-outlined">arrow_back</span>
+      <span>Back to Library</span>
+    </button>
+  </div>
+
+  <!-- Main Content -->
+  <div *ngIf="!isLoading && !hasError && paper" class="analyze__wrapper">
     <!-- Breadcrumbs -->
     <nav class="analyze__breadcrumbs">
       <div class="breadcrumbs">
         <a 
           *ngFor="let crumb of breadcrumbs; let last = last" 
-          [href]="crumb.link || '#'"
+          [routerLink]="crumb.link"
           class="breadcrumbs__item"
           [class.breadcrumbs__item--active]="last"
         >
@@ -15,23 +33,106 @@
       </div>
     </nav>
 
-    <!-- Paper Header -->
+    <!-- Paper Header Card -->
     <div class="analyze__header">
       <div class="analyze__header-content">
-        <h1 class="analyze__title">{{ paperInfo.title }}</h1>
-        <p class="analyze__authors">
-          {{ paperInfo.authors }}. {{ paperInfo.publication }}
-        </p>
+        <h1 class="analyze__title">{{ paper.title }}</h1>
+        <div class="analyze__meta">
+          <div class="meta-item">
+            <span class="material-symbols-outlined">person</span>
+            <span>{{ paper.authors }}</span>
+          </div>
+          <div class="meta-item" *ngIf="paper.publishedDate">
+  <span class="material-symbols-outlined">calendar_today</span>
+  <span>{{ paper.publishedDate }}</span>
+</div>
+
+<div class="meta-item" *ngIf="paper.source">
+  <span class="material-symbols-outlined">article</span>
+  <span>{{ paper.source || 'Research Paper' }}</span>
+</div>
+
+        </div>
       </div>
-      <button class="analyze__pdf-button" (click)="viewPDF()">
-        <span class="material-symbols-outlined">picture_as_pdf</span>
-        <span>View PDF</span>
-      </button>
+      <div class="analyze__actions">
+        <button 
+          class="analyze__button analyze__button--secondary"
+          (click)="toggleSave()"
+        >
+          <span class="material-symbols-outlined">
+            {{ isSaved ? 'bookmark' : 'bookmark_border' }}
+          </span>
+          <span>{{ isSaved ? 'Saved to Library' : 'Save to Library' }}</span>
+        </button>
+        <button 
+          class="analyze__button analyze__button--secondary"
+          (click)="viewPDF()"
+          [disabled]="!paper.pdf_url || paper.pdf_url === 'N/A'"
+        >
+          <span class="material-symbols-outlined">picture_as_pdf</span>
+          <span>View PDF</span>
+        </button>
+        <button 
+          class="analyze__button analyze__button--primary"
+          (click)="chatWithPaper()"
+        >
+          <span class="material-symbols-outlined">chat_bubble</span>
+          <span>Chat with Paper</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Main Content Grid -->
+    <!-- Main Grid -->
     <div class="analyze__grid">
-      <!-- Left Column: Sections -->
+      <!-- Sidebar -->
+      <aside class="analyze__sidebar">
+        <!-- AI Insights -->
+        <div class="sidebar-card" *ngIf="insights.length > 0">
+          <h3 class="sidebar-card__title">
+            <span class="material-symbols-outlined">psychology</span>
+            AI Insights
+          </h3>
+          <div class="insights-list">
+            <div *ngFor="let insight of insights" class="insight-item">
+              <div class="insight-item__icon">
+                <span class="material-symbols-outlined">{{ insight.icon }}</span>
+              </div>
+              <div class="insight-item__content">
+                <h4>{{ insight.title }}</h4>
+                <p *ngIf="insight.content">{{ insight.content }}</p>
+                <div *ngIf="insight.tags && insight.tags.length > 0" class="insight-item__tags">
+                  <span 
+                    *ngFor="let tag of insight.tags" 
+                    class="insight-tag"
+                  >
+                    {{ tag }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Related Papers -->
+        <div class="sidebar-card" *ngIf="relatedPapers.length > 0">
+          <h3 class="sidebar-card__title">
+            <span class="material-symbols-outlined">link</span>
+            Related Papers
+          </h3>
+          <div class="related-papers-list">
+            <div 
+              *ngFor="let relatedPaper of relatedPapers" 
+              class="related-paper"
+              (click)="viewRelatedPaper(relatedPaper.id)"
+            >
+              <h4 class="related-paper__title">{{ relatedPaper.title }}</h4>
+              <p class="related-paper__meta">{{ relatedPaper.authors }}</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Sections -->
       <div class="analyze__sections">
         <div 
           *ngFor="let section of sections" 
@@ -47,80 +148,34 @@
               expand_more
             </span>
           </button>
-          <div class="section-card__content" *ngIf="section.isOpen">
-            <p class="section-card__text">{{ section.content }}</p>
+          <div class="section-card__content">
+            <div class="section-card__body">
+              <p class="section-card__text">{{ section.content }}</p>
+            </div>
           </div>
         </div>
       </div>
-
-      <!-- Right Column: Insights & Related Papers -->
-      <aside class="analyze__sidebar">
-        <!-- AI Insights -->
-        <div class="insights-card">
-          <h3 class="insights-card__title">AI Insights</h3>
-          <div class="insights-card__list">
-            <div *ngFor="let insight of insights" class="insight-item">
-              <span class="material-symbols-outlined insight-item__icon">
-                {{ insight.icon }}
-              </span>
-              <div class="insight-item__content">
-                <h4 class="insight-item__title">{{ insight.title }}</h4>
-                <p *ngIf="insight.content" class="insight-item__text">
-                  {{ insight.content }}
-                </p>
-                <div *ngIf="insight.tags" class="insight-item__tags">
-                  <span 
-                    *ngFor="let tag of insight.tags" 
-                    class="insight-tag"
-                  >
-                    {{ tag }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Related Papers -->
-        <div class="related-papers">
-          <h3 class="related-papers__title">Related Papers</h3>
-          <div class="related-papers__scroll">
-            <div class="related-papers__list">
-              <div 
-                *ngFor="let paper of relatedPapers" 
-                class="related-paper-card"
-                (click)="viewRelatedPaper(paper.id)"
-              >
-                <h4 class="related-paper-card__title">{{ paper.title }}</h4>
-                <p class="related-paper-card__authors">{{ paper.authors }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
     </div>
   </div>
 
-  <!-- Sticky Action Bar -->
-  <div class="analyze__action-bar">
+  <!-- Floating Action Bar -->
+  <div class="analyze__action-bar" *ngIf="!isLoading && !hasError && paper">
     <div class="action-bar">
       <div class="action-bar__wrapper">
-        <button 
-          class="action-bar__button action-bar__button--secondary"
-          (click)="toggleSave()"
-        >
-          <span class="material-symbols-outlined">
-            {{ isSaved ? 'bookmark_added' : 'bookmark_border' }}
-          </span>
-          <span>{{ isSaved ? 'Saved to Library' : 'Save to Library' }}</span>
-        </button>
-        <button 
-          class="action-bar__button action-bar__button--primary"
-          (click)="chatWithPaper()"
-        >
-          <span class="material-symbols-outlined">chat_bubble</span>
-          <span>Chat with this Paper</span>
-        </button>
+        <div class="action-bar__info">
+          <span class="material-symbols-outlined">auto_awesome</span>
+          <span><strong>AI-Enhanced Analysis</strong> • {{ sections.length }} sections analyzed</span>
+        </div>
+        <div class="action-bar__buttons">
+          <button class="analyze__button analyze__button--secondary">
+            <span class="material-symbols-outlined">share</span>
+            <span>Share</span>
+          </button>
+          <button class="analyze__button analyze__button--primary">
+            <span class="material-symbols-outlined">download</span>
+            <span>Export Analysis</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

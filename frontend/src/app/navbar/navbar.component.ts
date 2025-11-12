@@ -15,8 +15,8 @@ export class NavbarComponent {
     { label: 'Home', path: '/home' },
     { label: 'Fetch', path: '/fetch' },
     { label: 'My Library', path: '/library' },
-    { label: 'History', path: '/research_history' },
-    { label: 'Analyze', path: '/analyze' },
+    // { label: 'History', path: '/research_history' },
+    // { label: 'Analyze', path: '/analyze' },
     { label: 'Chat', path: '/chat' }
   ];
 

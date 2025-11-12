@@ -10,26 +10,28 @@
             streamlining your workflow and accelerating discovery.
           </p>
         </div>
-        <button class="home__cta-button" (click)="searchPapers()">
+        <button class="home__cta-button" routerLink="/fetch">
           <span>Search Research Papers</span>
         </button>
       </div>
     </div>
 
     <!-- Saved Papers Section -->
-    <div class="home__section">
+    <div class="home__section" *ngIf="!isLoading && savedPapers.length > 0">
       <h2 class="home__section-title">My Saved Papers</h2>
-      
+
       <div class="home__papers-grid">
         <div *ngFor="let paper of savedPapers" class="paper-card">
           <div class="paper-card__header">
             <p class="paper-card__title">{{ paper.title }}</p>
             <p class="paper-card__authors">{{ paper.authors }}</p>
-            <p class="paper-card__year">{{ paper.year }}</p>
+            <p class="paper-card__year">{{ paper.publishedDate || 'N/A' }}</p>
           </div>
-          
-          <p class="paper-card__description">{{ paper.description }}</p>
-          
+
+          <p class="paper-card__description">
+            {{ paper.summary | slice:0:200 }}{{ paper.summary.length > 200 ? '...' : '' }}
+          </p>
+
           <div class="paper-card__actions">
             <button class="paper-card__view-btn" (click)="viewSummary(paper.id)">
               View Summary
@@ -55,10 +57,9 @@
       </div>
     </div>
 
-    <!-- Empty State Section -->
-    <div class="home__section home__section--empty">
+    <!-- Empty State -->
+    <div class="home__section home__section--empty" *ngIf="!isLoading && savedPapers.length === 0">
       <h2 class="home__section-title">Example: Empty Library</h2>
-      
       <div class="home__empty-state">
         <div class="empty-state">
           <div class="empty-state__icon">
@@ -70,11 +71,16 @@
               Start by searching for a paper to save it here.
             </p>
           </div>
-          <button class="empty-state__button" (click)="findPaper()">
+          <button class="empty-state__button" routerLink="/fetch">
             <span>Find a Paper</span>
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="home__section home__section--loading" *ngIf="isLoading">
+      <p class="text-center text-gray-500">Loading your saved papers...</p>
     </div>
   </div>
 </div>

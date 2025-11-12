@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+requests
+PyMuPDF
+langchain
+langchain-community
+langchain-core
+langchain-ollama
+sentence-transformers
+chromadb
+numpy
+typing_extensions

@@ -1,80 +1,134 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-interface HistoryItem {
-  id: string;
-  title: string;
-  authors: string;
-  source: string;
-  dateAdded: string;
-  selected: boolean;
-}
+import { Router } from '@angular/router';
+import { PaperService, Paper } from '../services/paper.service';
 
 type ViewMode = 'table' | 'grid';
 
-
 @Component({
   selector: 'app-research-history',
+  standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './research-history.component.html',
-  styleUrl: './research-history.component.scss'
+  styleUrls: ['./research-history.component.scss']
 })
-export class ResearchHistoryComponent {
-  historyItems: HistoryItem[] = [
-    {
-      id: '1',
-      title: 'The Attention Mechanism in Neural Networks',
-      authors: 'D. Bahdanau, K. Cho, Y. Bengio',
-      source: 'ICLR 2015',
-      dateAdded: '2023-10-26',
-      selected: false
-    },
-    {
-      id: '2',
-      title: 'BERT: Pre-training of Deep Bidirectional Transformers',
-      authors: 'J. Devlin, M. Chang, K. Lee',
-      source: 'NAACL 2019',
-      dateAdded: '2023-10-25',
-      selected: false
-    },
-    {
-      id: '3',
-      title: 'Generative Adversarial Networks',
-      authors: 'I. Goodfellow, J. Pouget-Abadie, M. Mirza',
-      source: 'NIPS 2014',
-      dateAdded: '2023-10-22',
-      selected: false
-    },
-    {
-      id: '4',
-      title: 'A Neural Algorithm of Artistic Style',
-      authors: 'L. Gatys, A. Ecker, M. Bethge',
-      source: 'arXiv 2015',
-      dateAdded: '2023-10-21',
-      selected: false
-    }
-  ];
-
+export class ResearchHistoryComponent implements OnInit {
+  // ========== STATE ==========
+  papers: Paper[] = [];
+  filteredPapers: Paper[] = [];
   searchQuery = '';
   viewMode: ViewMode = 'table';
   selectAll = false;
-  currentPage = 1;
-  totalPages = 235;
-  totalEntries = 2345;
-  entriesPerPage = 10;
 
-  get filteredItems(): HistoryItem[] {
-    if (!this.searchQuery.trim()) {
-      return this.historyItems;
-    }
-    
-    const query = this.searchQuery.toLowerCase();
-    return this.historyItems.filter(item => 
-      item.title.toLowerCase().includes(query) ||
-      item.authors.toLowerCase().includes(query) ||
-      item.source.toLowerCase().includes(query)
+  // Pagination info (you can adjust later)
+  currentPage = 1;
+  entriesPerPage = 10;
+  totalEntries = 0;
+
+  // ========== STATUS ==========
+  isLoading = true;
+  hasError = false;
+
+  constructor(
+    private paperService: PaperService,
+    private router: Router
+  ) {}
+
+  ngOnInit(): void {
+    this.loadResearchHistory();
+  }
+
+  /** Fetch saved papers from backend (ChromaDB) */
+  loadResearchHistory(): void {
+    this.paperService.loadPapers().subscribe({
+      next: () => {
+        this.papers = this.paperService.getPapers().map((p) => ({
+          ...p,
+          selected: false,
+          source: p.insights?.citations?.[0] || 'arXiv',
+          dateAdded: new Date().toISOString().split('T')[0],
+        }));
+        this.filteredPapers = [...this.papers];
+        this.totalEntries = this.papers.length;
+        this.isLoading = false;
+      },
+      error: (err) => {
+        console.error('❌ Error loading research history:', err);
+        this.isLoading = false;
+        this.hasError = true;
+      },
+    });
+  }
+
+  /** Search handler */
+  onSearchChange(): void {
+    const q = this.searchQuery.toLowerCase().trim();
+    this.filteredPapers = this.papers.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        p.authors.toLowerCase().includes(q)
     );
+    this.totalEntries = this.filteredPapers.length;
+    this.currentPage = 1;
+  }
+
+  /** Select/Deselect all papers */
+  toggleSelectAll(): void {
+  this.selectAll = !this.selectAll;
+  this.filteredPapers.forEach((p) => (p.isSelected = this.selectAll));
+}
+
+toggleItemSelection(id: string): void {
+  const item = this.filteredPapers.find((p) => p.id === id);
+  if (item) item.isSelected = !item.isSelected;
+  this.selectAll = this.filteredPapers.every((p) => p.isSelected);
+}
+
+
+  /** View paper → navigate to AnalyzeComponent */
+  viewPaper(id: string): void {
+    this.router.navigate(['/analyze', id]);
+  }
+
+  /** Download PDF */
+  downloadPDF(id: string): void {
+    const paper = this.papers.find((p) => p.id === id);
+    if (paper && paper.pdf_url && paper.pdf_url !== 'N/A') {
+      window.open(paper.pdf_url, '_blank');
+    } else {
+      alert('No PDF available for this paper.');
+    }
+  }
+
+  /** Delete paper (frontend only for now) */
+  deleteItem(id: string): void {
+    this.filteredPapers = this.filteredPapers.filter((p) => p.id !== id);
+    this.papers = this.papers.filter((p) => p.id !== id);
+    this.totalEntries = this.filteredPapers.length;
+  }
+
+  /** UI Controls (Filter/Sort) */
+  openFilterMenu(): void {
+    alert('🔍 Filter options coming soon.');
+  }
+
+  openSortMenu(): void {
+    alert('↕️ Sort options coming soon.');
+  }
+
+  setViewMode(mode: ViewMode): void {
+    this.viewMode = mode;
+  }
+
+  addNewPaper(): void {
+    this.router.navigate(['/fetch']);
+  }
+
+  /** Pagination helpers */
+  get paginatedItems(): Paper[] {
+    const start = (this.currentPage - 1) * this.entriesPerPage;
+    return this.filteredPapers.slice(start, start + this.entriesPerPage);
   }
 
   get paginationStart(): number {
@@ -85,63 +139,22 @@ export class ResearchHistoryComponent {
     return Math.min(this.currentPage * this.entriesPerPage, this.totalEntries);
   }
 
-  addNewPaper(): void {
-    console.log('Add new paper clicked');
-  }
-
-  toggleSelectAll(): void {
-    this.selectAll = !this.selectAll;
-    this.historyItems.forEach(item => item.selected = this.selectAll);
-  }
-
-  toggleItemSelection(itemId: string): void {
-    const item = this.historyItems.find(h => h.id === itemId);
-    if (item) {
-      item.selected = !item.selected;
-    }
-    this.selectAll = this.historyItems.every(h => h.selected);
-  }
-
-  setViewMode(mode: ViewMode): void {
-    this.viewMode = mode;
-  }
-
-  viewPaper(itemId: string): void {
-    console.log('View paper:', itemId);
-  }
-
-  downloadPDF(itemId: string): void {
-    console.log('Download PDF:', itemId);
-  }
-
-  deleteItem(itemId: string): void {
-    this.historyItems = this.historyItems.filter(h => h.id !== itemId);
-    console.log('Deleted item:', itemId);
-  }
-
-  openFilterMenu(): void {
-    console.log('Open filter menu');
-  }
-
-  openSortMenu(): void {
-    console.log('Open sort menu');
-  }
-
-  goToPage(page: number): void {
-    if (page >= 1 && page <= this.totalPages) {
-      this.currentPage = page;
-    }
-  }
-
   previousPage(): void {
-    if (this.currentPage > 1) {
-      this.currentPage--;
-    }
+    if (this.currentPage > 1) this.currentPage--;
   }
 
   nextPage(): void {
-    if (this.currentPage < this.totalPages) {
+    if (this.currentPage * this.entriesPerPage < this.totalEntries)
       this.currentPage++;
+  }
+
+  goToPage(page: number): void {
+    if (page >= 1 && page <= Math.ceil(this.totalEntries / this.entriesPerPage)) {
+      this.currentPage = page;
     }
   }
+  get totalPages(): number {
+    return Math.max(1, Math.ceil(this.totalEntries / this.entriesPerPage));
+  }
+
 }

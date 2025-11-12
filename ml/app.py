@@ -2,9 +2,9 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from langchain_ollama import OllamaLLM
 import fitz  # PyMuPDF
-import os, re, json
+import os, re, json, requests
+import tempfile
 from vector_store import add_paper_to_db, query_papers
-
 
 app = FastAPI(title="AutoResearch Summarizer + Insight Service")
 
@@ -13,15 +13,110 @@ llm = OllamaLLM(
     base_url="http://192.168.1.36:11434"
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or ["http://localhost:4200"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# =============== UTILITY FUNCTIONS ===============
+
+def extract_json_from_text(text: str):
+    """
+    Tries to extract the first valid JSON object from text.
+    Strategy:
+    - find first '{', then find matching '}' by scanning (keeps nesting).
+    - fallback: take substring from first '{' to last '}'.
+    - Finally, try json.loads and return result or None.
+    """
+    if not text or "{" not in text:
+        return None
+    start = text.find("{")
+    # scan to find matching closing brace considering nested braces
+    depth = 0
+    end = None
+    for i in range(start, len(text)):
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    candidate = None
+    if end:
+        candidate = text[start:end+1]
+    else:
+        # fallback: from first '{' to last '}'
+        last = text.rfind("}")
+        if last > start:
+            candidate = text[start:last+1]
+
+    if candidate:
+        try:
+            return json.loads(candidate)
+        except Exception:
+            # last resort: try to replace single quotes then parse (dangerous)
+            try:
+                return json.loads(candidate.replace("'", "\""))
+            except Exception:
+                return None
+    return None
+
+def normalize_text(value):
+    """Normalize various data types to string for embedding."""
+    if isinstance(value, list):
+        return " ".join(map(str, value))
+    if isinstance(value, dict):
+        # if dict contains lists for core fields, convert them
+        return " ".join([normalize_text(v) for v in value.values()])
+    return str(value or "")
+
+def download_pdf(pdf_url: str) -> str:
+    """Downloads a PDF to a temporary local file and returns the path."""
+    try:
+        resp = requests.get(pdf_url, timeout=30, allow_redirects=True, stream=True)
+        if resp.status_code == 200:
+            # accept any 200 content but check extension or content-type if available
+            content_type = resp.headers.get("content-type", "")
+            if 'pdf' in content_type.lower() or pdf_url.lower().endswith('.pdf') or len(resp.content) > 100:
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+                temp_file.write(resp.content)
+                temp_file.close()
+                return temp_file.name
+    except Exception as e:
+        print(f"⚠️ Failed to download PDF: {e}")
+    return ""
+
+# =============== DATA MODELS ===============
 
 class TextData(BaseModel):
     text: str
-
 
 class PDFData(BaseModel):
     path: str
     metadata: dict | None = None
 
+class SummaryData(BaseModel):
+    summary: str
+
+class PaperStoreRequest(BaseModel):
+    title: str
+    summary: str
+    insights: dict
+    metadata: dict
+
+class PaperQueryRequest(BaseModel):
+    query: str
+    n_results: int = 3
+
+
+# =============== ROOT ROUTE ===============
 
 @app.get("/")
 def root():
@@ -32,7 +127,6 @@ def root():
 
 @app.post("/summarize")
 def summarize_text(data: TextData):
-    """Summarize plain text."""
     text = data.text.strip()
     if not text:
         return {"error": "Empty input text"}
@@ -44,7 +138,6 @@ def summarize_text(data: TextData):
 
 @app.post("/structured_summary")
 def summarize_pdf(data: PDFData):
-    """Summarize a research paper PDF into structured JSON."""
     path = data.path
     metadata = data.metadata or {}
 
@@ -88,10 +181,12 @@ def summarize_pdf(data: PDFData):
     """
     final_summary = llm.invoke(final_prompt)
 
-    match = re.search(r"\{.*\}", final_summary, re.DOTALL)
-    try:
-        summary_json = json.loads(match.group(0)) if match else {"raw_summary": final_summary}
-    except json.JSONDecodeError:
+    # Use robust JSON extraction
+    extracted = extract_json_from_text(final_summary)
+    if extracted is not None:
+        summary_json = extracted
+    else:
+        # fallback to raw text
         summary_json = {"raw_summary": final_summary}
 
     summary_json["meta"] = {
@@ -107,15 +202,8 @@ def summarize_pdf(data: PDFData):
 
 # =============== 2️⃣ INSIGHT AGENT INTEGRATION ===============
 
-class SummaryData(BaseModel):
-    summary: str
-
-
 @app.post("/extract_insights")
 def extract_insights(data: SummaryData):
-    """
-    Extract structured insights (findings, methods, datasets, implications) from summary text.
-    """
     summary = data.summary.strip()
     if not summary:
         return {"error": "Empty summary input"}
@@ -137,37 +225,45 @@ def extract_insights(data: SummaryData):
     """
     result = llm.invoke(prompt)
 
-    match = re.search(r"\{.*\}", result, re.DOTALL)
-    try:
-        insights = json.loads(match.group(0)) if match else {"raw_output": result}
-    except json.JSONDecodeError:
+    # Use robust JSON extraction
+    extracted = extract_json_from_text(result)
+    if extracted is not None:
+        insights = extracted
+    else:
+        # fallback to raw output
         insights = {"raw_output": result}
 
     return {"insights": insights}
 
 
-# =============== 3️⃣ COMBINED END-TO-END ROUTE ===============
+# =============== 3️⃣ FULL PIPELINE ===============
 
 @app.post("/analyze_paper")
 def analyze_paper(data: PDFData):
-    """
-    1. Summarize the paper (structured)
-    2. Extract insights from the summary
-    """
     print("🚀 Starting full analysis pipeline...")
+    pdf_path = data.path
+    if pdf_path.startswith("http"):
+        pdf_path = download_pdf(pdf_path)
+        if not pdf_path:
+            return {"error": "Failed to download PDF"}
+
+    data.path = pdf_path
     summary_data = summarize_pdf(data)
     if "error" in summary_data:
         return summary_data
 
-    # Convert structured summary JSON → plain text summary
+    # Build normalized summary text from structured data
     summary_text = (
-        summary_data.get("abstract", "") + "\n" +
-        summary_data.get("findings", "") + "\n" +
-        " ".join(summary_data.get("key_points", []))
+        normalize_text(summary_data.get("abstract", "")) + "\n" +
+        normalize_text(summary_data.get("objectives", "")) + "\n" +
+        normalize_text(summary_data.get("methodology", "")) + "\n" +
+        normalize_text(summary_data.get("findings", "")) + "\n" +
+        normalize_text(summary_data.get("limitations", "")) + "\n" +
+        normalize_text(summary_data.get("key_points", []))
     )
 
-    # Extract insights from that summary
-    insights = extract_insights(SummaryData(summary=summary_text))["insights"]
+    result = extract_insights(SummaryData(summary=summary_text))
+    insights = result.get("insights", result)  # fallback to full result if key missing
 
     try:
         add_paper_to_db(
@@ -179,20 +275,13 @@ def analyze_paper(data: PDFData):
     except Exception as e:
         print("⚠️ Could not store in ChromaDB:", e)
 
-    return {
-        "summary": summary_data,
-        "insights": insights
-    }
+    return {"summary": summary_data, "insights": insights}
 
-class PaperStoreRequest(BaseModel):
-    title: str
-    summary: str
-    insights: dict
-    metadata: dict
+
+# =============== 4️⃣ CHROMA DB STORAGE & SEARCH ===============
 
 @app.post("/store_paper")
 def store_paper(data: PaperStoreRequest):
-    """Store summarized paper + insights in ChromaDB."""
     try:
         add_paper_to_db(
             title=data.title,
@@ -204,15 +293,136 @@ def store_paper(data: PaperStoreRequest):
     except Exception as e:
         return {"error": str(e)}
 
-class PaperQueryRequest(BaseModel):
-    query: str
-    n_results: int = 3
 
 @app.post("/search_papers")
 def search_papers(data: PaperQueryRequest):
-    """Retrieve top-N similar research papers."""
     try:
         results = query_papers(data.query, data.n_results)
         return results
     except Exception as e:
+        return {"error": str(e)}
+
+
+# =============== 5️⃣ DEBUG ENDPOINT ===============
+
+@app.get("/debug_list_papers")
+def debug_list_papers(limit: int = 10):
+    """Debug endpoint to inspect what's stored in ChromaDB."""
+    try:
+        # Query for empty string retrieving top matches
+        results = query_papers(" ", n_results=limit)
+        return results
+    except Exception as e:
+        return {"error": str(e), "papers": []}
+
+
+# =============== 6️⃣ FETCH PAPERS FROM ARXIV ===============
+
+@app.get("/fetch_papers")
+def fetch_papers(category: str = "cs.AI", max_results: int = 5):
+    """
+    Fetch latest research papers from arXiv.
+    Example: /fetch_papers?category=cs.AI&max_results=10
+    """
+    base_url = "http://export.arxiv.org/api/query"
+    params = {
+        "search_query": f"cat:{category}",
+        "start": 0,
+        "max_results": max_results,
+        "sortBy": "submittedDate",
+        "sortOrder": "descending"
+    }
+
+    response = requests.get(base_url, params=params)
+    if response.status_code != 200:
+        return {"error": "Failed to fetch from arXiv"}
+
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(response.text)
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
+
+    papers = []
+
+    for entry in root.findall("atom:entry", ns):
+        # --- Extract basic info ---
+        title_el = entry.find("atom:title", ns)
+        summary_el = entry.find("atom:summary", ns)
+        title = title_el.text.strip() if title_el is not None else "Untitled"
+        summary = summary_el.text.strip() if summary_el is not None else ""
+
+        # --- Authors ---
+        authors_list = []
+        for a in entry.findall("atom:author", ns):
+            name_el = a.find("atom:name", ns)
+            if name_el is not None:
+                authors_list.append(name_el.text)
+        authors = ", ".join(authors_list) if authors_list else "Unknown"
+
+        # --- Published Date ---
+        published_el = entry.find("atom:published", ns)
+        published = published_el.text[:10] if published_el is not None else "N/A"
+
+        # --- Try to get PDF link ---
+        pdf_url = None
+        for link in entry.findall("atom:link", ns):
+            href = link.attrib.get("href", "")
+            title_attr = link.attrib.get("title", "").lower()
+            type_attr = link.attrib.get("type", "")
+            rel_attr = link.attrib.get("rel", "")
+
+            if title_attr == "pdf" and href:
+                pdf_url = href
+                break
+            if type_attr == "application/pdf" and href:
+                pdf_url = href
+                break
+            if rel_attr == "related" and href.endswith(".pdf"):
+                pdf_url = href
+                break
+
+        # --- Fallback: construct PDF link from arXiv ID ---
+        if not pdf_url:
+            id_el = entry.find("atom:id", ns)
+            if id_el is not None and id_el.text:
+                abs_url = id_el.text.strip()  # e.g. http://arxiv.org/abs/2401.12345
+                if "/abs/" in abs_url:
+                    pdf_url = abs_url.replace("/abs/", "/pdf/")
+                    if not pdf_url.endswith(".pdf"):
+                        pdf_url += ".pdf"
+                else:
+                    pdf_url = abs_url
+
+        papers.append({
+            "title": title,
+            "summary": summary,
+            "authors": authors,
+            "publishedDate": published,
+            "pdf_url": pdf_url or "N/A"
+        })
+
+    return {"papers": papers}
+
+# =============== 7️⃣ DELETE PAPER FROM CHROMADB ===============
+
+from vector_store import collection  # import the same collection object
+
+@app.delete("/delete_paper/{paper_id}")
+def delete_paper(paper_id: str):
+    """
+    Delete a paper permanently from ChromaDB by ID.
+    """
+    try:
+        if not paper_id:
+            return {"error": "Missing paper_id"}
+
+        # Check if it exists before deleting (optional safety)
+        existing = collection.get(ids=[paper_id])
+        if not existing or not existing.get("ids"):
+            return {"error": f"No paper found with ID {paper_id}"}
+
+        collection.delete(ids=[paper_id])
+        print(f"🗑️ Deleted paper {paper_id} from ChromaDB")
+        return {"message": f"Deleted paper {paper_id} successfully ✅"}
+    except Exception as e:
+        print("⚠️ Error deleting paper:", e)
         return {"error": str(e)}

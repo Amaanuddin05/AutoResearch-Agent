@@ -127,6 +127,19 @@
           </button>
         </div>
       </div>
+      <!-- Fullscreen Loader -->
+<div class="loader-overlay" *ngIf="isAnalyzing">
+  <div class="loader-box">
+    <div class="loader-text">Analyzing Paper...</div>
+
+    <div class="progress-container">
+      <div class="progress-bar" [style.width.%]="progress"></div>
+    </div>
+
+    <div class="progress-value">{{ progress }}%</div>
+  </div>
+</div>
+
     </div>
   </div>
 </div>
