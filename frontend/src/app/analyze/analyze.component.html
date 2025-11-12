@@ -1,0 +1,127 @@
+<div class="analyze">
+  <div class="analyze__wrapper">
+    <!-- Breadcrumbs -->
+    <nav class="analyze__breadcrumbs">
+      <div class="breadcrumbs">
+        <a 
+          *ngFor="let crumb of breadcrumbs; let last = last" 
+          [href]="crumb.link || '#'"
+          class="breadcrumbs__item"
+          [class.breadcrumbs__item--active]="last"
+        >
+          {{ crumb.label }}
+          <span *ngIf="!last" class="breadcrumbs__separator">/</span>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Paper Header -->
+    <div class="analyze__header">
+      <div class="analyze__header-content">
+        <h1 class="analyze__title">{{ paperInfo.title }}</h1>
+        <p class="analyze__authors">
+          {{ paperInfo.authors }}. {{ paperInfo.publication }}
+        </p>
+      </div>
+      <button class="analyze__pdf-button" (click)="viewPDF()">
+        <span class="material-symbols-outlined">picture_as_pdf</span>
+        <span>View PDF</span>
+      </button>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="analyze__grid">
+      <!-- Left Column: Sections -->
+      <div class="analyze__sections">
+        <div 
+          *ngFor="let section of sections" 
+          class="section-card"
+          [class.section-card--open]="section.isOpen"
+        >
+          <button 
+            class="section-card__header" 
+            (click)="toggleSection(section.id)"
+          >
+            <h3 class="section-card__title">{{ section.title }}</h3>
+            <span class="material-symbols-outlined section-card__icon">
+              expand_more
+            </span>
+          </button>
+          <div class="section-card__content" *ngIf="section.isOpen">
+            <p class="section-card__text">{{ section.content }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Insights & Related Papers -->
+      <aside class="analyze__sidebar">
+        <!-- AI Insights -->
+        <div class="insights-card">
+          <h3 class="insights-card__title">AI Insights</h3>
+          <div class="insights-card__list">
+            <div *ngFor="let insight of insights" class="insight-item">
+              <span class="material-symbols-outlined insight-item__icon">
+                {{ insight.icon }}
+              </span>
+              <div class="insight-item__content">
+                <h4 class="insight-item__title">{{ insight.title }}</h4>
+                <p *ngIf="insight.content" class="insight-item__text">
+                  {{ insight.content }}
+                </p>
+                <div *ngIf="insight.tags" class="insight-item__tags">
+                  <span 
+                    *ngFor="let tag of insight.tags" 
+                    class="insight-tag"
+                  >
+                    {{ tag }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Related Papers -->
+        <div class="related-papers">
+          <h3 class="related-papers__title">Related Papers</h3>
+          <div class="related-papers__scroll">
+            <div class="related-papers__list">
+              <div 
+                *ngFor="let paper of relatedPapers" 
+                class="related-paper-card"
+                (click)="viewRelatedPaper(paper.id)"
+              >
+                <h4 class="related-paper-card__title">{{ paper.title }}</h4>
+                <p class="related-paper-card__authors">{{ paper.authors }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Sticky Action Bar -->
+  <div class="analyze__action-bar">
+    <div class="action-bar">
+      <div class="action-bar__wrapper">
+        <button 
+          class="action-bar__button action-bar__button--secondary"
+          (click)="toggleSave()"
+        >
+          <span class="material-symbols-outlined">
+            {{ isSaved ? 'bookmark_added' : 'bookmark_border' }}
+          </span>
+          <span>{{ isSaved ? 'Saved to Library' : 'Save to Library' }}</span>
+        </button>
+        <button 
+          class="action-bar__button action-bar__button--primary"
+          (click)="chatWithPaper()"
+        >
+          <span class="material-symbols-outlined">chat_bubble</span>
+          <span>Chat with this Paper</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
