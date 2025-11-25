@@ -8,6 +8,37 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet"/>
+  <script>
+    (function initializeTheme() {
+      var THEME_KEY = 'theme';
+      var DARK_CLASS = 'dark-mode';
+      try {
+        var storedTheme = localStorage.getItem(THEME_KEY);
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var shouldEnableDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
+
+        if (!shouldEnableDark) {
+          return;
+        }
+
+        document.documentElement.classList.add(DARK_CLASS);
+
+        var applyBodyClass = function () {
+          if (document.body) {
+            document.body.classList.add(DARK_CLASS);
+          }
+        };
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', applyBodyClass, { once: true });
+        } else {
+          applyBodyClass();
+        }
+      } catch (error) {
+        console.warn('Theme initialization failed:', error);
+      }
+    })();
+  </script>
 </head>
 <body>
   <app-root></app-root>

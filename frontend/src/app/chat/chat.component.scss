@@ -519,7 +519,7 @@
 }
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
+@mixin chat-dark-theme {
   .chat {
     background: linear-gradient(to bottom, #0f172a 0%, #1e293b 100%);
   }
@@ -660,6 +660,10 @@
     background: #334155;
     color: #818cf8;
   }
+}
+
+:host-context(.dark-mode) {
+  @include chat-dark-theme;
 }
 
 /* Responsive Design */

@@ -4,6 +4,7 @@ import { FetchComponent } from './fetch/fetch.component';
 import { LibraryComponent } from './library/library.component';
 import { ChatComponent } from './chat/chat.component';
 import { ResearchHistoryComponent } from './research-history/research-history.component';
+import { LoginComponent } from './login/login.component';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -17,4 +18,7 @@ export const routes: Routes = [
   { path: 'library', component: ResearchHistoryComponent },
   { path: 'chat', component: ChatComponent },
   { path: 'research_history', component: ResearchHistoryComponent },
+  { path: 'login', component: LoginComponent },
+
+
 ];

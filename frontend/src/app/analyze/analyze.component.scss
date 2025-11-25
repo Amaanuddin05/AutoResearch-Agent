@@ -501,7 +501,7 @@
   transform: none;
   box-shadow: none;
 }
-@media (prefers-color-scheme: dark) {
+@mixin analyze-dark-theme {
   .breadcrumbs__item {
     color: #94a3b8;
   }
@@ -629,6 +629,10 @@
   .action-bar__info strong {
     color: white;
   }
+}
+
+:host-context(.dark-mode) {
+  @include analyze-dark-theme;
 }
 
 /* Responsive */
