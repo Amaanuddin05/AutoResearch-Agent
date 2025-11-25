@@ -411,7 +411,7 @@
 }
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
+@mixin home-dark-theme {
   .home {
     background: linear-gradient(to bottom, #0f172a 0%, #1e293b 100%);
   }
@@ -506,6 +506,10 @@
   .empty-state__button:hover {
     background: linear-gradient(135deg, #334155 0%, #475569 100%);
   }
+}
+
+:host-context(.dark-mode) {
+  @include home-dark-theme;
 }
 
 /* Responsive Design */

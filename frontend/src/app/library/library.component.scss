@@ -471,7 +471,7 @@
 }
 
 /* Dark Mode */
-@media (prefers-color-scheme: dark) {
+@mixin library-dark-theme {
   .library__title {
     background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
     -webkit-background-clip: text;
@@ -634,6 +634,10 @@
     background: #334155;
     border-color: #475569;
   }
+}
+
+:host-context(.dark-mode) {
+  @include library-dark-theme;
 }
 
 /* Responsive */

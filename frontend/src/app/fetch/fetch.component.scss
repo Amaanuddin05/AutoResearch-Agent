@@ -552,7 +552,7 @@
 }
 
 /* Dark Mode */
-@media (prefers-color-scheme: dark) {
+@mixin fetch-dark-theme {
   .fetch__title {
     background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
     -webkit-background-clip: text;
@@ -704,6 +704,10 @@
   .error-state__button:hover {
     background: #991b1b;
   }
+}
+
+:host-context(.dark-mode) {
+  @include fetch-dark-theme;
 }
 
 /* Responsive */

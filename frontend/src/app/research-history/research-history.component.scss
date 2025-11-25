@@ -533,7 +533,7 @@
 }
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
+@mixin research-history-dark-theme {
   .research-history {
     background: linear-gradient(to bottom, #0f172a 0%, #1e293b 100%);
   }
@@ -713,6 +713,10 @@
   .research-history__pagination-ellipsis {
     color: #64748b;
   }
+}
+
+:host-context(.dark-mode) {
+  @include research-history-dark-theme;
 }
 
 /* Responsive Design */

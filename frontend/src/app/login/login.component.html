@@ -1,10 +1,15 @@
-<h2>Weekly Coding Challenge #1: Sign in/up Form</h2>
+<section class="login">
+  <h2 class="login__title">Weekly Coding Challenge #1: Sign in/up Form</h2>
 
-<div class="container" [class.right-panel-active]="isSignUpMode" id="container">
+  <div 
+    class="container" 
+    [class.right-panel-active]="isSignUpMode" 
+    aria-live="polite"
+  >
 
   <!-- Sign Up Form -->
   <div class="form-container sign-up-container">
-    <form>
+    <form aria-label="Sign up form">
       <h1>Create Account</h1>
 
       <div class="social-container">
@@ -53,25 +58,26 @@
       <div class="overlay-panel overlay-left">
         <h1>Welcome Back!</h1>
         <p>To keep connected with us please login with your personal info</p>
-        <button class="ghost" (click)="switchToSignIn()">Sign In</button>
+        <button class="ghost" type="button" (click)="switchToSignIn()">Sign In</button>
       </div>
 
       <!-- Right Side -->
       <div class="overlay-panel overlay-right">
         <h1>Hello, Friend!</h1>
         <p>Enter your personal details and start your journey with us</p>
-        <button class="ghost" (click)="switchToSignUp()">Sign Up</button>
+        <button class="ghost" type="button" (click)="switchToSignUp()">Sign Up</button>
       </div>
 
     </div>
   </div>
-</div>
+  </div>
 
-<footer>
-  <p>
-    Created with <i class="fa fa-heart"></i> by
-    <a target="_blank" href="https://florin-pop.com">Florin Pop</a>
-    - Read how I created this and how you can join the challenge
-    <a target="_blank" href="https://www.florin-pop.com/blog/2019/03/double-slider-sign-in-up-form/">here</a>.
-  </p>
-</footer>
+  <footer>
+    <p>
+      Created with <i class="fa fa-heart"></i> by
+      <a target="_blank" rel="noreferrer" href="https://florin-pop.com">Florin Pop</a>
+      - Read how I created this and how you can join the challenge
+      <a target="_blank" rel="noreferrer" href="https://www.florin-pop.com/blog/2019/03/double-slider-sign-in-up-form/">here</a>.
+    </p>
+  </footer>
+</section>

@@ -1,27 +1,21 @@
-import { Component, AfterViewInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component } from '@angular/core';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [],
+  imports: [CommonModule],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
-export class LoginComponent implements AfterViewInit {
+export class LoginComponent {
+  isSignUpMode = false;
 
-  ngAfterViewInit(): void {
-    const signUpButton = document.getElementById('signUp') as HTMLButtonElement | null;
-    const signInButton = document.getElementById('signIn') as HTMLButtonElement | null;
-    const container = document.getElementById('container') as HTMLElement | null;
+  switchToSignUp(): void {
+    this.isSignUpMode = true;
+  }
 
-    if (signUpButton && signInButton && container) {
-      signUpButton.addEventListener('click', () => {
-        container.classList.add('right-panel-active');
-      });
-
-      signInButton.addEventListener('click', () => {
-        container.classList.remove('right-panel-active');
-      });
-    }
+  switchToSignIn(): void {
+    this.isSignUpMode = false;
   }
 }
