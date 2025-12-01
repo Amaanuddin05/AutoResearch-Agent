@@ -25,11 +25,11 @@
           <div class="paper-card__header">
             <p class="paper-card__title">{{ paper.title }}</p>
             <p class="paper-card__authors">{{ paper.authors }}</p>
-            <p class="paper-card__year">{{ paper.publishedDate || 'N/A' }}</p>
+            <p class="paper-card__year">{{ paper.published || 'N/A' }}</p>
           </div>
 
           <p class="paper-card__description">
-            {{ paper.summary | slice:0:200 }}{{ paper.summary.length > 200 ? '...' : '' }}
+            {{ paper.summary ? (paper.summary | slice:0:200) : '' }}{{ (paper.summary?.length || 0) > 200 ? '...' : '' }}
           </p>
 
           <div class="paper-card__actions">

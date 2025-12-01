@@ -67,7 +67,7 @@ export class ResearchHistoryComponent implements OnInit {
     this.filteredPapers = this.papers.filter(
       (p) =>
         p.title.toLowerCase().includes(q) ||
-        p.authors.toLowerCase().includes(q)
+        p.authors.join(', ').toLowerCase()
     );
     this.totalEntries = this.filteredPapers.length;
     this.currentPage = 1;

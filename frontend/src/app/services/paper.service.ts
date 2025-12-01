@@ -5,11 +5,12 @@ import { BehaviorSubject, Observable, tap } from 'rxjs';
 export interface Paper {
   id: string;
   title: string;
-  authors: string;
-  publishedDate: string;
-  summary: string;
+  authors: string[];       
+  summary: string | null;
+  published: string | null; 
+  pdf_url: string | null;
+  citationCount?: number;
   insights?: any;
-  pdf_url?: string;
   isFavorite?: boolean;
   isSelected?: boolean;
   dateAdded?: string;
@@ -49,50 +50,51 @@ export class PaperService {
     return papers.find((p) => p.id === id || p.title === id);
   }
 
-  /** Convert backend /search_papers response → Paper[] */
   private mapChromaResponse(response: any): Paper[] {
-    if (response && Array.isArray(response.papers)) {
-      return response.papers.map((p: any) => {
-        let insights: any = {};
-        try {
-          // Some insights may come as a stringified JSON
-          insights =
-            typeof p.insights === 'string'
-              ? JSON.parse(p.insights)
-              : p.insights || {};
-        } catch (e) {
-          insights = {};
-        }
+    if (!response || !Array.isArray(response.papers)) return [];
 
-        return {
-          id: p.id,
-          title: p.title || 'Untitled',
-          authors: p.authors || 'Unknown',
-          publishedDate: p.published || 'N/A',
-          summary: p.summary || 'No summary available.',
-          pdf_url: p.pdf_url || 'N/A',
-          insights,
-          isFavorite: false,
-          isSelected: false,
-          dateAdded: new Date().toISOString(),
-          source: 'ChromaDB',
-        };
-      });
-    }
+    return response.papers.map((p: any) => {
+      const parsedInsights =
+        typeof p.insights === 'string'
+          ? JSON.parse(p.insights || '{}')
+          : p.insights || {};
 
-    console.error('Unexpected /search_papers response format:', response);
-    return [];
+      const authors =
+        typeof p.authors === 'string'
+          ? p.authors.split(',').map((a: string) => a.trim())
+          : p.authors || [];
+
+      return {
+        id: p.id,
+        title: p.title || 'Untitled',
+        authors,
+        summary: p.summary || null,
+        published: p.published || null,
+        pdf_url: p.pdf_url || null,
+        insights: parsedInsights,
+        dateAdded: new Date().toISOString(),
+        source: 'ChromaDB',
+      };
+    });
   }
 
   getAllPapers(): Paper[] {
     const stored = localStorage.getItem('savedPapers');
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
   }
 
   addToLibrary(paper: Paper): void {
     const saved = this.getAllPapers();
     if (!saved.find((p) => p.id === paper.id)) {
-      saved.push({ ...paper, dateAdded: new Date().toISOString() });
+      saved.push({
+        ...paper,
+        dateAdded: new Date().toISOString(),
+      });
       localStorage.setItem('savedPapers', JSON.stringify(saved));
     }
   }
@@ -102,10 +104,7 @@ export class PaperService {
     localStorage.setItem('savedPapers', JSON.stringify(saved));
   }
 
-  /** Permanently delete a paper from ChromaDB */
-deletePaperFromDB(paperId: string): Observable<any> {
-  return this.http.delete(`${this.apiUrl}/delete_paper/${paperId}`);
-}
-
-
+  deletePaperFromDB(paperId: string): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/delete_paper/${paperId}`);
+  }
 }

@@ -1,24 +1,33 @@
-const formatAuthors = (author) => {
-  if (Array.isArray(author)) {
-    return author.map((a) => a.name).join(", ");
-  }
-  return author?.name || "Unknown";
+const formatAuthorsArray = (author) => {
+  if (Array.isArray(author)) return author.map((a) => a.name || "Unknown");
+  return author?.name ? [author.name] : [];
 };
 
 const derivePdfUrl = (entry) => {
   if (Array.isArray(entry.link)) {
-    return entry.link.find((link) => link.$.type === "application/pdf")?.$.href || null;
+    const pdfLink = entry.link.find((l) => l.$.type === "application/pdf");
+    if (pdfLink) return pdfLink.$.href;
   }
-  return entry.link?.$.href || null;
+  if (entry.link?.$.type === "application/pdf") return entry.link.$.href;
+  return null;
 };
 
 const fallbackPdfUrl = (entry) => {
-  if (entry.id) {
-    const idMatch = entry.id.match(/\/abs\/(.*)$/);
-    if (idMatch) {
-      return `https://arxiv.org/pdf/${idMatch[1]}.pdf`;
-    }
-  }
+  if (!entry.id) return null;
+  const m = entry.id.match(/\/abs\/(.*)$/);
+  if (!m) return null;
+  return `https://arxiv.org/pdf/${m[1]}.pdf`;
+};
+
+const extractArxivId = (entry) => {
+  if (!entry.id) return null;
+  const m = entry.id.match(/\/abs\/(.*)$/);
+  return m ? m[1] : null;
+};
+
+const extractDoi = (entry) => {
+  if (entry["arxiv:doi"]) return entry["arxiv:doi"];
+  if (entry.doi) return entry.doi;
   return null;
 };
 
@@ -28,11 +37,15 @@ export const mapEntryToPaper = (entry) => {
   const pdfUrl = derivePdfUrl(entry) || fallbackPdfUrl(entry);
 
   return {
+    id: entry.id || null,
+    arxiv_id: extractArxivId(entry),
+    doi: extractDoi(entry),
     title: entry.title?.trim() || "Untitled Paper",
-    authors: formatAuthors(entry.author),
-    summary: entry.summary?.trim(),
+    summary: entry.summary?.trim() || null,
+    authors: formatAuthorsArray(entry.author),
+    published: entry.published || null,
+    updated: entry.updated || null,
     pdf_url: pdfUrl,
-    published: entry.published || "Unknown",
+    link: entry.id || null
   };
 };
-

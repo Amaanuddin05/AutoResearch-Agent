@@ -3,27 +3,31 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 @Injectable({
-  providedIn: 'root',
+  providedIn: 'root'
 })
 export class FetchService {
-  private apiUrl = 'http://localhost:8000'; // FastAPI backend URL
+  private apiUrl = 'http://localhost:5000';
 
   constructor(private http: HttpClient) {}
 
-  fetchFromArxiv(category: string, max_results: number): Observable<any> {
-    const params = { category, max_results };
-    return this.http.get(`${this.apiUrl}/fetch_papers`, { params });
+  fetchPapers(payload: {
+    query?: string;
+    category?: string;
+    filter?: string;
+    max_results?: number;
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/fetch`, payload);
   }
-  analyzePaper(paper: any): Observable<any> {
-    const body = {
-      path: paper.pdf_url,
-      metadata: {
-        title: paper.title,
-        authors: paper.authors,
-        pdf_url: paper.pdf_url,
-        published: paper.publishedDate,
-      },
-    };
-    return this.http.post(`${this.apiUrl}/analyze_paper`, body);
-  }
+
+  fetchAndSummarize(payload: {
+  query?: string;
+  category?: string;
+  filter?: string;
+  max_results?: number;
+  pdf_url?: string;
+  metadata?: any;
+}): Observable<any> {
+  return this.http.post(`${this.apiUrl}/fetch_and_summarize`, payload);
+}
+
 }

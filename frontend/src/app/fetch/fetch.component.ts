@@ -5,12 +5,16 @@ import { Router } from '@angular/router';
 import { FetchService } from '../services/fetch.service';
 
 interface Paper {
-  id: string;
+  id: string | null;
+  arxiv_id: string | null;
+  doi: string | null;
   title: string;
-  authors: string;
-  publishedDate: string;
-  summary: string;
-  pdf_url: string;
+  authors: string[];
+  published: string | null;
+  updated: string | null;
+  summary: string | null;
+  pdf_url: string | null;
+  citationCount?: number;
 }
 
 @Component({
@@ -21,16 +25,25 @@ interface Paper {
   styleUrls: ['./fetch.component.scss'],
 })
 export class FetchComponent {
+  searchMode: 'category' | 'search' = 'category';
+  
   selectedCategory: string = 'Machine Learning';
-  numberOfResults: number = 50;
   isLoading = false;
   hasError = false;
   showEmptyState = true;
 
-  // 🔥 NEW Loader for "Analyze & Save"
+  query: string = '';
+  filter: string = 'all';
+
   isAnalyzing = false;
   progress = 0;
   progressInterval: any;
+
+  currentPage: number = 1;
+  itemsPerPage: number = 10;
+  totalPages: number = 0;
+  allPapers: Paper[] = [];
+  papers: Paper[] = [];
 
   categories: string[] = [
     'Artificial Intelligence','Machine Learning','Deep Learning','Computer Vision',
@@ -43,48 +56,113 @@ export class FetchComponent {
     'Environmental Science','Econometrics','Sustainability Research'
   ];
 
-  papers: Paper[] = [];
-  loadingPapers: number[] = [1, 2, 3];
+  loadingPapers: number[] = Array(10).fill(null);
 
   constructor(
     private fetchService: FetchService,
     private router: Router
   ) {}
 
-  onSliderChange(event: Event): void {
-    const target = event.target as HTMLInputElement;
-    this.numberOfResults = parseInt(target.value);
+  truncateText(text: string, maxLength: number): string {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + '...';
   }
 
   fetchPapers(): void {
     this.isLoading = true;
     this.hasError = false;
     this.showEmptyState = false;
+    this.allPapers = [];
     this.papers = [];
+    this.currentPage = 1;
 
     const categoryCode = this.getArxivCategoryCode(this.selectedCategory);
 
-    this.fetchService.fetchFromArxiv(categoryCode, this.numberOfResults).subscribe({
+    const searchQuery = this.searchMode === 'search' ? this.query.trim() : '';
+
+    const payload: any = {
+      query: searchQuery || null,
+      category: searchQuery.length > 0 ? null : categoryCode,
+      filter: this.filter,
+      max_results: 100
+    };
+
+    this.fetchService.fetchPapers(payload).subscribe({
       next: (res) => {
         this.isLoading = false;
 
-        this.papers = (res.papers || []).map((p: any, index: number) => ({
-          id: String(index),
+        this.allPapers = (res.papers || []).map((p: any) => ({
+          id: p.id,
+          arxiv_id: p.arxiv_id,
+          doi: p.doi,
           title: p.title,
           authors: p.authors,
-          publishedDate: p.publishedDate,
           summary: p.summary,
+          published: p.published,
+          updated: p.updated,
           pdf_url: p.pdf_url,
+          citationCount: p.citationCount
         }));
 
-        this.showEmptyState = this.papers.length === 0;
+        this.updatePagination();
+        this.updateDisplayedPapers();
+        this.showEmptyState = this.allPapers.length === 0;
       },
-      error: (err) => {
-        console.error('❌ Error fetching from arXiv:', err);
+      error: () => {
         this.isLoading = false;
         this.hasError = true;
       }
     });
+  }
+
+  updatePagination(): void {
+    this.totalPages = Math.ceil(this.allPapers.length / this.itemsPerPage);
+  }
+
+  updateDisplayedPapers(): void {
+    const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+    const endIndex = startIndex + this.itemsPerPage;
+    this.papers = this.allPapers.slice(startIndex, endIndex);
+  }
+
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages) return;
+    this.currentPage = page;
+    this.updateDisplayedPapers();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  getPageNumbers(): number[] {
+    const pages: number[] = [];
+    const maxVisible = 7;
+
+    if (this.totalPages <= maxVisible) {
+      for (let i = 1; i <= this.totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+
+      if (this.currentPage > 3) {
+        pages.push(-1);
+      }
+
+      const start = Math.max(2, this.currentPage - 1);
+      const end = Math.min(this.totalPages - 1, this.currentPage + 1);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (this.currentPage < this.totalPages - 2) {
+        pages.push(-1);
+      }
+
+      pages.push(this.totalPages);
+    }
+
+    return pages;
   }
 
   getArxivCategoryCode(category: string): string {
@@ -104,54 +182,60 @@ export class FetchComponent {
     return map[category] || 'cs.AI';
   }
 
-  // ------------------------------------------------------------
-  // 🔥 NEW Analyze + Save Progress Loader
-  // ------------------------------------------------------------
-  analyzeAndSave(paperId: string): void {
-    const paper = this.papers.find((p) => p.id === paperId);
-    if (!paper) return;
-
-    this.isAnalyzing = true;
-    this.progress = 0;
-
-    // Smooth loading animation
-    this.progressInterval = setInterval(() => {
-      if (this.progress < 95) this.progress += 5;
-    }, 2000);
-
-    this.fetchService.analyzePaper(paper).subscribe({
-      next: () => {
-        this.progress = 100;
-        clearInterval(this.progressInterval);
-
-        setTimeout(() => {
-          this.isAnalyzing = false;
-          this.router.navigate(['/library']); // redirect
-        }, 500);
-      },
-      error: (err) => {
-        clearInterval(this.progressInterval);
-        this.isAnalyzing = false;
-        alert("❌ Failed to analyze this paper.");
-        console.error(err);
-      }
-    });
+  analyzeAndSave(paper: Paper): void {
+  if (!paper || !paper.pdf_url) {
+    alert("This paper has no PDF URL.");
+    return;
   }
 
+  this.isAnalyzing = true;
+  this.progress = 0;
+
+  this.progressInterval = setInterval(() => {
+    if (this.progress < 95) this.progress += 5;
+  }, 2000);
+
+  const payload = {
+    pdf_url: paper.pdf_url,
+    metadata: {
+      id: paper.id,
+      title: paper.title,
+      authors: paper.authors,
+      published: paper.published,
+      pdf_url: paper.pdf_url
+    }
+  };
+
+  this.fetchService.fetchAndSummarize(payload).subscribe({
+    next: () => {
+      this.progress = 100;
+      clearInterval(this.progressInterval);
+
+      setTimeout(() => {
+        this.isAnalyzing = false;
+        this.router.navigate(['/library']);
+      }, 500);
+    },
+    error: () => {
+      clearInterval(this.progressInterval);
+      this.isAnalyzing = false;
+      alert("Failed to analyze this paper.");
+    }
+  });
+}
+
+
   openPDF(paperId: string): void {
-    const paper = this.papers.find(
+    const paper = this.allPapers.find(
       (p) => p.id === paperId || p.title === paperId
     );
 
     if (!paper) return;
 
     const candidates: string[] = [];
-    if ((paper as any).pdf_url) candidates.push((paper as any).pdf_url);
-    if ((paper as any).pdfUrl) candidates.push((paper as any).pdfUrl);
-    if ((paper as any).pdf) candidates.push((paper as any).pdf);
-    if ((paper as any).abs_url) candidates.push((paper as any).abs_url);
-    if ((paper as any).arxiv_id) {
-      const id = (paper as any).arxiv_id.toString();
+    if (paper.pdf_url) candidates.push(paper.pdf_url);
+    if (paper.arxiv_id) {
+      const id = paper.arxiv_id.toString();
       candidates.push(
         `https://arxiv.org/pdf/${id}.pdf`,
         `https://arxiv.org/abs/${id}`
@@ -160,20 +244,15 @@ export class FetchComponent {
 
     const valid = candidates.find((u) => u.startsWith('http'));
     if (valid) {
-  window.open(valid, '_blank');
-  return;
-}
+      window.open(valid, '_blank');
+      return;
+    }
 
-
-    alert('❌ No PDF available.');
+    alert('No PDF available.');
   }
 
   retryFetch(): void {
     this.hasError = false;
     this.fetchPapers();
-  }
-
-  get sliderPercentage(): number {
-    return (this.numberOfResults / 100) * 100;
   }
 }

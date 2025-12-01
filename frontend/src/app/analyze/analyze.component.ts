@@ -21,7 +21,9 @@ interface Insight {
 interface RelatedPaper {
   id: string;
   title: string;
-  authors: string;
+  authors: string[]; // <-- changed to array
+  published: string | null;
+  summary: string | null;
 }
 
 @Component({
@@ -37,11 +39,10 @@ export class AnalyzeComponent implements OnInit {
   isSaved = false;
   hasError = false;
   breadcrumbs = [
-  { label: 'My Library', link: '/research-history' },
-  { label: 'Analyzed Papers', link: '/analyze' },
-  { label: 'Details', link: null }
-];
-
+    { label: 'My Library', link: '/research-history' },
+    { label: 'Analyzed Papers', link: '/analyze' },
+    { label: 'Details', link: null },
+  ];
 
   sections: Section[] = [];
   insights: Insight[] = [];
@@ -150,16 +151,21 @@ export class AnalyzeComponent implements OnInit {
 
   fetchRelatedPapers(): void {
     if (!this.paper) return;
+
     this.relatedPapers = [
       {
         id: '1',
         title: 'Extensions of ' + this.paper.title,
         authors: this.paper.authors,
+        published: this.paper.published,
+        summary: this.paper.summary,
       },
       {
         id: '2',
         title: 'Follow-up Studies on ' + this.paper.title,
         authors: this.paper.authors,
+        published: this.paper.published,
+        summary: this.paper.summary,
       },
     ];
   }

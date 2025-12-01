@@ -1,59 +1,89 @@
 <div class="fetch">
   <div class="fetch__wrapper">
-    <!-- Page Header -->
     <div class="fetch__header">
       <div class="fetch__header-content">
         <h1 class="fetch__title">Fetch Research Papers</h1>
         <p class="fetch__subtitle">
-          Select a category and the number of results to start your search.
+          Search by paper name or select a research category to discover relevant papers.
         </p>
       </div>
     </div>
 
-    <!-- Controls Section -->
     <div class="fetch__controls">
-      <!-- Category Dropdown -->
-      <div class="fetch__control-group">
-        <label class="fetch__label" for="category">Research Category</label>
-        <select 
-          id="category"
-          class="fetch__select" 
-          [(ngModel)]="selectedCategory"
+      <!-- Search Mode Toggle -->
+      <div class="fetch__mode-toggle">
+        <button 
+          class="fetch__mode-button"
+          [class.fetch__mode-button--active]="searchMode === 'category'"
+          (click)="searchMode = 'category'"
         >
-          <option *ngFor="let category of categories" [value]="category">
-            {{ category }}
-          </option>
-        </select>
+          <span class="material-symbols-outlined">category</span>
+          <span>Select Category</span>
+        </button>
+        <button 
+          class="fetch__mode-button"
+          [class.fetch__mode-button--active]="searchMode === 'search'"
+          (click)="searchMode = 'search'"
+        >
+          <span class="material-symbols-outlined">search</span>
+          <span>Search by Name</span>
+        </button>
       </div>
 
-      <!-- Slider -->
-      <div class="fetch__control-group fetch__control-group--slider">
-        <div class="fetch__slider-header">
-          <label class="fetch__label">Number of Results</label>
-          <span class="fetch__slider-value">{{ numberOfResults }}</span>
-        </div>
-        <div class="fetch__slider-container">
-          <input 
-            type="range" 
-            class="fetch__slider"
-            min="1" 
-            max="100" 
-            [value]="numberOfResults"
-            (input)="onSliderChange($event)"
-            [style.--slider-percentage]="sliderPercentage + '%'"
-          />
-        </div>
+      <!-- Search Bar (shown when search mode is active) -->
+      <div class="fetch__search-bar" *ngIf="searchMode === 'search'">
+        <span class="material-symbols-outlined fetch__search-icon">search</span>
+        <input
+          type="text"
+          class="fetch__search-input"
+          placeholder="Search papers by keywords (e.g., transformer vision, neural networks)"
+          [(ngModel)]="query"
+        />
+        <button 
+          *ngIf="query.trim()" 
+          class="fetch__clear-button"
+          (click)="query = ''"
+        >
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
 
-      <!-- Fetch Button -->
-      <button class="fetch__button" (click)="fetchPapers()">
-        <span class="material-symbols-outlined">search</span>
-        <span>Fetch Papers</span>
-      </button>
+      <!-- Filters Row -->
+      <div class="fetch__filters">
+        <!-- Category Dropdown (shown when category mode is active) -->
+        <div class="fetch__filter-group" *ngIf="searchMode === 'category'">
+          <label class="fetch__filter-label">Category</label>
+          <select
+            class="fetch__filter-select"
+            [(ngModel)]="selectedCategory"
+          >
+            <option *ngFor="let category of categories" [value]="category">
+              {{ category }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Filter Dropdown -->
+        <div class="fetch__filter-group">
+          <label class="fetch__filter-label">Sort By</label>
+          <select class="fetch__filter-select" [(ngModel)]="filter">
+            <option value="all">All Papers</option>
+            <option value="recent">Most Recent</option>
+            <option value="popular">Most Popular</option>
+          </select>
+        </div>
+
+        <!-- Fetch Button -->
+        <button class="fetch__action-button" (click)="fetchPapers()">
+          <span class="material-symbols-outlined">auto_awesome</span>
+          <span>Fetch Papers</span>
+        </button>
+      </div>
     </div>
 
     <!-- Results Grid -->
     <div class="fetch__results">
+
       <!-- Loading State -->
       <div *ngIf="isLoading" class="fetch__grid">
         <div *ngFor="let item of loadingPapers" class="paper-card paper-card--loading">
@@ -78,25 +108,62 @@
           <div class="paper-card__header">
             <h3 class="paper-card__title">{{ paper.title }}</h3>
             <div class="paper-card__meta">
-              <span>{{ paper.authors }}</span>
-              <span class="paper-card__separator">|</span>
-              <span>Published: {{ paper.publishedDate }}</span>
+              <span>{{ paper.authors.join(', ') }}</span>
+              <span class="paper-card__separator" *ngIf="paper.published">•</span>
+              <span *ngIf="paper.published">{{ paper.published }}</span>
+              <span class="paper-card__separator" *ngIf="paper.citationCount">•</span>
+              <span *ngIf="paper.citationCount">{{ paper.citationCount }} citations</span>
             </div>
           </div>
-          
-          <p class="paper-card__summary">{{ paper.summary }}</p>
-          
+
+          <p class="paper-card__summary">{{ truncateText(paper.summary || '', 150) }}</p>
+
           <div class="paper-card__actions">
-            <button class="paper-card__button paper-card__button--primary" (click)="analyzeAndSave(paper.id)">
+            <button class="paper-card__button paper-card__button--primary" (click)="analyzeAndSave(paper)">
               <span class="material-symbols-outlined">auto_awesome</span>
               <span>Analyze & Save</span>
             </button>
-            <button class="paper-card__button paper-card__button--secondary" (click)="openPDF(paper.id)">
+
+            <button class="paper-card__button paper-card__button--secondary" (click)="openPDF(paper.id!)">
               <span class="material-symbols-outlined">picture_as_pdf</span>
               <span>Open PDF</span>
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Pagination -->
+      <div *ngIf="!isLoading && !showEmptyState && !hasError && totalPages > 1" class="fetch__pagination">
+        <button 
+          class="pagination__button pagination__button--nav"
+          [disabled]="currentPage === 1"
+          (click)="goToPage(currentPage - 1)"
+        >
+          <span class="material-symbols-outlined">chevron_left</span>
+          <span>Previous</span>
+        </button>
+
+        <div class="pagination__pages">
+          <button
+            *ngFor="let page of getPageNumbers()"
+            class="pagination__button pagination__button--page"
+            [class.pagination__button--active]="page === currentPage"
+            [class.pagination__button--ellipsis]="page === -1"
+            [disabled]="page === -1"
+            (click)="page !== -1 && goToPage(page)"
+          >
+            {{ page === -1 ? '...' : page }}
+          </button>
+        </div>
+
+        <button 
+          class="pagination__button pagination__button--nav"
+          [disabled]="currentPage === totalPages"
+          (click)="goToPage(currentPage + 1)"
+        >
+          <span>Next</span>
+          <span class="material-symbols-outlined">chevron_right</span>
+        </button>
       </div>
 
       <!-- Empty State -->
@@ -106,9 +173,9 @@
             <span class="material-symbols-outlined">search</span>
           </div>
           <div class="empty-state__content">
-            <p class="empty-state__title">Start Your Research</p>
+            <p class="empty-state__title">Ready to Explore</p>
             <p class="empty-state__description">
-              Select a category and specify the number of results, then click "Fetch Papers" to begin discovering new insights.
+              Enter keywords or select a category to discover research papers.
             </p>
           </div>
         </div>
@@ -119,26 +186,29 @@
         <div class="error-state">
           <span class="material-symbols-outlined error-state__icon">error</span>
           <div class="error-state__content">
-            <p class="error-state__title">Failed to fetch papers.</p>
+            <p class="error-state__title">Failed to fetch papers</p>
             <p class="error-state__description">Please check your connection and try again.</p>
           </div>
           <button class="error-state__button" (click)="retryFetch()">
-            Try Again
+            <span class="material-symbols-outlined">refresh</span>
+            Retry
           </button>
         </div>
       </div>
+
       <!-- Fullscreen Loader -->
-<div class="loader-overlay" *ngIf="isAnalyzing">
-  <div class="loader-box">
-    <div class="loader-text">Analyzing Paper...</div>
-
-    <div class="progress-container">
-      <div class="progress-bar" [style.width.%]="progress"></div>
-    </div>
-
-    <div class="progress-value">{{ progress }}%</div>
-  </div>
-</div>
+      <div class="loader-overlay" *ngIf="isAnalyzing">
+        <div class="loader-box">
+          <div class="loader-spinner">
+            <span class="material-symbols-outlined">autorenew</span>
+          </div>
+          <div class="loader-text">Analyzing Paper...</div>
+          <div class="progress-container">
+            <div class="progress-bar" [style.width.%]="progress"></div>
+          </div>
+          <div class="progress-value">{{ progress }}%</div>
+        </div>
+      </div>
 
     </div>
   </div>

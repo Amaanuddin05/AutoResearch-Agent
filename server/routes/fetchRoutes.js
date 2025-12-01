@@ -7,4 +7,3 @@ router.post("/fetch", fetchPapers);
 router.post("/fetch_and_summarize", fetchAndSummarize);
 
 export default router;
-

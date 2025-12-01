@@ -42,9 +42,9 @@
             <span class="material-symbols-outlined">person</span>
             <span>{{ paper.authors }}</span>
           </div>
-          <div class="meta-item" *ngIf="paper.publishedDate">
+          <div class="meta-item" *ngIf="paper.published">
   <span class="material-symbols-outlined">calendar_today</span>
-  <span>{{ paper.publishedDate }}</span>
+  <span>{{ paper.published }}</span>
 </div>
 
 <div class="meta-item" *ngIf="paper.source">

@@ -5,3 +5,4 @@ server/uploads
 server/summaries
 server/downloads
 ml/chroma_db
+server/fetched_papers.json
