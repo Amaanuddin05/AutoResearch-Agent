@@ -6,6 +6,9 @@ export interface ChatSource {
   title: string;
   doc_id: string;
   chunk_type: string;
+  paperTitle?: string;
+  pdf_url?: string;
+  section?: string;
 }
 
 export interface ChatResponse {

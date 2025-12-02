@@ -132,13 +132,24 @@ export class ChatComponent {
         // Remove thinking message
         this.messages = this.messages.filter(m => m.id !== thinkingId);
 
+        // Map sources to include paper details
+        const mappedSources = response.sources.map(src => {
+             const paper = this.paperService.getAllPapers().find(p => p.id === src.doc_id);
+             return {
+                 ...src,
+                 paperTitle: paper?.title || src.title || 'Unknown Paper',
+                 pdf_url: paper?.pdf_url || undefined,
+                 section: src.chunk_type // Map chunk_type to section
+             };
+        });
+
         // Add Assistant Message
         this.messages.push({
           id: Date.now().toString(),
           type: 'assistant',
           content: response.answer,
           timestamp: new Date(),
-          sources: response.sources
+          sources: mappedSources
         });
         this.isLoading = false;
       },

@@ -66,10 +66,13 @@
                   <div *ngIf="message.showSources" class="message__sources-list">
                     <div *ngFor="let source of message.sources" class="source-item">
                       <div class="source-item__header">
-                        <span class="source-item__title">{{ source.title }}</span>
-                        <span class="source-item__type">{{ source.chunk_type }}</span>
+                        <span class="source-item__title">{{ source.paperTitle }}</span>
+                        <span class="source-item__type">{{ source.section }}</span>
                       </div>
-                      <div class="source-item__id">ID: {{ source.doc_id }}</div>
+                      <div class="source-item__details">
+                        <a *ngIf="source.pdf_url" [href]="source.pdf_url" target="_blank" class="source-link">View PDF</a>
+                        <span class="source-item__id">ID: {{ source.doc_id.substring(0, 8) }}...</span>
+                      </div>
                     </div>
                   </div>
                 </div>

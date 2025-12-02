@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { FetchService } from '../services/fetch.service';
+import { PaperService } from '../services/paper.service';
 
 interface Paper {
   id: string | null;
@@ -60,7 +61,8 @@ export class FetchComponent {
 
   constructor(
     private fetchService: FetchService,
-    private router: Router
+    private router: Router,
+    private paperService: PaperService
   ) {}
 
   truncateText(text: string, maxLength: number): string {
@@ -207,15 +209,42 @@ export class FetchComponent {
   };
 
   this.fetchService.fetchAndSummarize(payload).subscribe({
-    next: () => {
-      this.progress = 100;
-      clearInterval(this.progressInterval);
+      next: (res: any) => {
+        this.progress = 100;
+        clearInterval(this.progressInterval);
 
-      setTimeout(() => {
-        this.isAnalyzing = false;
-        this.router.navigate(['/library']);
-      }, 500);
-    },
+        // Check for nested structure from /analyze_paper
+        // res.summary contains { summary: {...}, insights: {...} }
+        const data = res.summary || {};
+        const summaryObj = data.summary || {};
+        const insightsObj = data.insights || {};
+        const meta = summaryObj.meta;
+
+        // Save to Library if metadata exists
+        if (meta) {
+           // Merge summary and insights for the frontend
+           const mergedInsights = { ...summaryObj, ...insightsObj };
+
+           // Map to PaperService Paper interface
+           const newPaper: any = {
+             id: meta.doc_id || meta.id,
+             title: meta.title,
+             authors: Array.isArray(meta.authors) ? meta.authors : [meta.authors],
+             summary: summaryObj.abstract || summaryObj.raw_summary || '',
+             published: meta.published,
+             pdf_url: meta.pdf_url,
+             insights: mergedInsights, // Store merged data
+             dateAdded: new Date().toISOString(),
+             source: 'Arxiv'
+           };
+           this.paperService.addToLibrary(newPaper);
+        }
+
+        setTimeout(() => {
+          this.isAnalyzing = false;
+          this.router.navigate(['/library']);
+        }, 500);
+      },
     error: () => {
       clearInterval(this.progressInterval);
       this.isAnalyzing = false;

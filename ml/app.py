@@ -350,12 +350,15 @@ def analyze_paper(data: PDFData, background_tasks: BackgroundTasks):
     result = extract_insights(SummaryData(summary=summary_text))
     insights = result.get("insights", result)  # fallback to full result if key missing
 
+    doc_id = summary_data["meta"].get("id") or summary_data["meta"].get("doc_id")
+    
     try:
         uid = add_paper_to_db(
             title=summary_data["meta"]["title"],
             summary=summary_text,
             insights=insights,
-            metadata=summary_data["meta"]
+            metadata=summary_data["meta"],
+            doc_id=doc_id
         )
         if uid:
             summary_data["meta"]["doc_id"] = uid
@@ -380,11 +383,14 @@ def analyze_paper(data: PDFData, background_tasks: BackgroundTasks):
 @app.post("/store_paper")
 def store_paper(data: PaperStoreRequest, background_tasks: BackgroundTasks):
     try:
+        doc_id = data.metadata.get("id") or data.metadata.get("doc_id")
+        
         uid = add_paper_to_db(
             title=data.title,
             summary=data.summary,
             insights=data.insights,
             metadata=data.metadata,
+            doc_id=doc_id
         )
         
         if uid:

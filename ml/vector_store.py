@@ -53,10 +53,11 @@ def _sanitize_metadata(meta: dict) -> dict:
 
 # ============ Core Functions ============
 
-def add_paper_to_db(title: str, summary: str, insights: Any, metadata: dict):
+def add_paper_to_db(title: str, summary: str, insights: Any, metadata: dict, doc_id: str = None):
     """
     Store a paper summary + insights + metadata in ChromaDB.
     Stores insights as JSON string inside metadata for compatibility.
+    If doc_id is provided, use it; otherwise generate a new UUID.
     """
     try:
         insights_dict = _ensure_insights_dict(insights)
@@ -72,13 +73,14 @@ def add_paper_to_db(title: str, summary: str, insights: Any, metadata: dict):
         # Generate embedding
         embedding = embed_text(combined_text)
 
+        # Use provided doc_id or generate new UUID
+        uid = doc_id if doc_id else str(uuid.uuid4())
+
         # Make metadata safe
         metadata_with_insights = dict(metadata or {})
         metadata_with_insights["insights"] = json.dumps(insights_dict)  # ← JSON-encoded here
+        metadata_with_insights["doc_id"] = uid # Ensure doc_id is in metadata
         metadata_with_insights = _sanitize_metadata(metadata_with_insights)
-
-        # Use UUID as unique id
-        uid = str(uuid.uuid4())
 
         # Store in ChromaDB
         collection.add(
@@ -90,8 +92,6 @@ def add_paper_to_db(title: str, summary: str, insights: Any, metadata: dict):
 
         print(f"✅ Stored '{title}' (id={uid}) in ChromaDB.")
         print("   Metadata keys:", list(metadata_with_insights.keys()))
-        print("   Combined text (first 200 chars):", combined_text[:200], "\n")
-
         print("   Combined text (first 200 chars):", combined_text[:200], "\n")
         
         return uid

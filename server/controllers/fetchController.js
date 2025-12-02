@@ -148,7 +148,7 @@ export const fetchAndSummarize = async (req, res) => {
     const pdfPath = path.join(UPLOAD_DIR, `${safeTitle}.pdf`);
     fs.writeFileSync(pdfPath, pdfResponse.data);
 
-    const summaryResponse = await axios.post("http://127.0.0.1:8000/structured_summary", {
+    const summaryResponse = await axios.post("http://127.0.0.1:8000/analyze_paper", {
       path: pdfPath,
       metadata: paper,
     });
