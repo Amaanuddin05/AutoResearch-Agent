@@ -53,14 +53,25 @@
                   <div class="message__bubble message__bubble--assistant">
                     <p class="message__text">{{ message.content }}</p>
                   </div>
-                  <button 
-                    *ngIf="message.sources" 
+                    <button 
+                    *ngIf="message.sources && message.sources.length > 0" 
                     class="message__sources-btn"
-                    (click)="viewSources(message.id)"
+                    (click)="toggleSources(message.id)"
                   >
                     <span class="material-symbols-outlined">library_books</span>
-                    <span>View {{ message.sources }} sources</span>
+                    <span>{{ message.showSources ? 'Hide Sources' : 'View Sources' }} ({{ message.sources.length }})</span>
                   </button>
+                  
+                  <!-- Sources List -->
+                  <div *ngIf="message.showSources" class="message__sources-list">
+                    <div *ngFor="let source of message.sources" class="source-item">
+                      <div class="source-item__header">
+                        <span class="source-item__title">{{ source.title }}</span>
+                        <span class="source-item__type">{{ source.chunk_type }}</span>
+                      </div>
+                      <div class="source-item__id">ID: {{ source.doc_id }}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </ng-container>
@@ -89,7 +100,9 @@
         *ngIf="showContextSidebar"
       >
         <div class="chat__sidebar-header">
-          <h2 class="chat__sidebar-title">Context Used</h2>
+          <h2 class="chat__sidebar-title">
+            Select Context
+          </h2>
           <button 
             class="chat__sidebar-close"
             (click)="toggleContextSidebar()"
@@ -99,14 +112,42 @@
           </button>
         </div>
         <div class="chat__sidebar-content">
-          <div 
-            *ngFor="let paper of contextPapers"
-            class="context-card"
-            (click)="viewPaper(paper.id)"
-          >
-            <h3 class="context-card__title">{{ paper.title }}</h3>
-            <p class="context-card__authors">{{ paper.authors }} ({{ paper.year }})</p>
+          
+          <!-- Context Selection Mode -->
+          <div *ngIf="sidebarMode === 'context'" class="context-list">
+            <p class="sidebar-hint">Select papers to use as context for your chat.</p>
+            <div 
+              *ngFor="let paper of contextPapers"
+              class="context-item"
+              [class.context-item--selected]="paper.isSelected"
+              (click)="togglePaperSelection(paper)"
+            >
+              <div class="context-item__checkbox">
+                <span class="material-symbols-outlined">
+                  {{ paper.isSelected ? 'check_box' : 'check_box_outline_blank' }}
+                </span>
+              </div>
+              <div class="context-item__info">
+                <h3 class="context-item__title">{{ paper.title }}</h3>
+                <p class="context-item__meta">{{ paper.authors }}</p>
+              </div>
+            </div>
           </div>
+
+          <!-- Sources Mode -->
+          <div *ngIf="sidebarMode === 'sources'" class="sources-list">
+            <div 
+              *ngFor="let source of currentSources"
+              class="context-card"
+            >
+              <h3 class="context-card__title">{{ source.title }}</h3>
+              <p class="context-card__authors">
+                <span class="badge">{{ source.chunk_type }}</span>
+                ID: {{ source.doc_id.substring(0, 8) }}...
+              </p>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -123,11 +164,12 @@
         ></textarea>
         <div class="chat__input-actions">
           <button 
-            class="chat__input-btn chat__input-btn--secondary"
-            (click)="attachFile()"
-            aria-label="Attach file"
+            class="chat__input-btn chat__input-btn--secondary chat__input-btn--text"
+            (click)="openAddSources()"
+            aria-label="Add sources"
           >
-            <span class="material-symbols-outlined">attach_file</span>
+            <span class="material-symbols-outlined">add_circle</span>
+            <span>Add Sources</span>
           </button>
           <button 
             class="chat__input-btn chat__input-btn--primary"

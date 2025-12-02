@@ -50,6 +50,7 @@ export class AnalyzeComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private paperService: PaperService
   ) {}
 
@@ -193,7 +194,9 @@ export class AnalyzeComponent implements OnInit {
   }
 
   chatWithPaper(): void {
-    console.log('🧠 Chatting about paper:', this.paper?.title);
+    if (this.paper) {
+      this.router.navigate(['/chat'], { queryParams: { paperId: this.paper.id } });
+    }
   }
 
   viewRelatedPaper(paperId: string): void {

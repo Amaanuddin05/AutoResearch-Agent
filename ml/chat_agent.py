@@ -57,10 +57,30 @@ def generate_rag_response(message: str, context_ids: list = None):
     # 1. Retrieve
     chunks = query_enriched_chunks(message, n_results=10, doc_ids=context_ids)
     if not chunks:
-        return {
-            "answer": "I couldn't find any relevant research in the database to answer your question.",
-            "sources": []
-        }
+        # Fallback to normal LLM if no context found
+        print("⚠️ No relevant chunks found. Falling back to general LLM.")
+        prompt_template = """
+        You are a helpful research assistant.
+        The user asked: "{question}"
+        
+        Answer based on your general knowledge.
+        Return ONLY valid JSON in this format:
+        {{
+          "answer": "...",
+          "sources": []
+        }}
+        """
+        prompt = ChatPromptTemplate.from_template(prompt_template)
+        chain = prompt | llm | StrOutputParser()
+        try:
+            raw_output = chain.invoke({"question": message})
+            match = re.search(r"\{[\s\S]*\}", raw_output)
+            if match:
+                return json.loads(match.group(0))
+            else:
+                return {"answer": raw_output, "sources": []}
+        except Exception as e:
+            return {"answer": "I couldn't find any research on that, and I had trouble generating a general answer.", "sources": []}
         
     # 2. Compress
     short_context = compress_context(chunks)
