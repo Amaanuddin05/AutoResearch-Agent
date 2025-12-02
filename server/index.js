@@ -4,6 +4,7 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import fetchRoutes from "./routes/fetchRoutes.js";
 import summaryRoutes from "./routes/summaryRoutes.js";
 import downloadRoutes from "./routes/downloadRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,6 +17,7 @@ app.use(uploadRoutes);
 app.use(fetchRoutes);
 app.use(summaryRoutes);
 app.use(downloadRoutes);
+app.use(chatRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

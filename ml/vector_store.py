@@ -92,8 +92,13 @@ def add_paper_to_db(title: str, summary: str, insights: Any, metadata: dict):
         print("   Metadata keys:", list(metadata_with_insights.keys()))
         print("   Combined text (first 200 chars):", combined_text[:200], "\n")
 
+        print("   Combined text (first 200 chars):", combined_text[:200], "\n")
+        
+        return uid
+
     except Exception as e:
         print("⚠️ add_paper_to_db error:", e)
+        return None
 
 
 def query_papers(query: str, n_results: int = 3):
@@ -189,3 +194,41 @@ def store_enriched_chunks(chunks: list, metadata: dict):
         except Exception as e:
             print(f"Failed to store enriched chunks: {e}")
 
+            print(f"Failed to store enriched chunks: {e}")
+
+
+def query_enriched_chunks(query: str, n_results: int = 5, doc_ids: list = None):
+    """
+    Retrieve enriched chunks for RAG.
+    Supports filtering by doc_id (original paper ID).
+    """
+    query_emb = embed_text(query)
+    
+    where_filter = None
+    if doc_ids:
+        if len(doc_ids) == 1:
+            where_filter = {"doc_id": doc_ids[0]}
+        else:
+            where_filter = {"doc_id": {"$in": doc_ids}}
+            
+    results = collection.query(
+        query_embeddings=[query_emb],
+        n_results=n_results,
+        where=where_filter
+    )
+    
+    ids = (results.get("ids") or [[]])[0]
+    docs = (results.get("documents") or [[]])[0]
+    metas = (results.get("metadatas") or [[]])[0]
+    distances = (results.get("distances") or [[]])[0]
+    
+    chunks = []
+    for i, _id in enumerate(ids):
+        chunks.append({
+            "id": _id,
+            "content": docs[i] if i < len(docs) else "",
+            "metadata": metas[i] if i < len(metas) else {},
+            "distance": distances[i] if i < len(distances) else 0.0
+        })
+        
+    return chunks

@@ -6,6 +6,7 @@ import os, re, json, requests
 import tempfile
 from vector_store import add_paper_to_db, query_papers, store_enriched_chunks
 from summarizer_agent import extract_section_summaries, rewrite_paragraphs, extract_concepts
+from chat_agent import generate_rag_response
 
 app = FastAPI(title="AutoResearch Summarizer + Insight Service")
 
@@ -115,6 +116,10 @@ class PaperStoreRequest(BaseModel):
 class PaperQueryRequest(BaseModel):
     query: str
     n_results: int = 3
+
+class ChatRequest(BaseModel):
+    message: str
+    context_ids: list[str] | None = None
 
 
 # =============== ROOT ROUTE ===============
@@ -346,17 +351,19 @@ def analyze_paper(data: PDFData, background_tasks: BackgroundTasks):
     insights = result.get("insights", result)  # fallback to full result if key missing
 
     try:
-        add_paper_to_db(
+        uid = add_paper_to_db(
             title=summary_data["meta"]["title"],
             summary=summary_text,
             insights=insights,
             metadata=summary_data["meta"]
         )
+        if uid:
+            summary_data["meta"]["doc_id"] = uid
     except Exception as e:
         print("⚠️ Could not store in ChromaDB:", e)
 
     # Trigger enrichment in background
-    if full_text and summary_text:
+    if full_text and summary_text and summary_data["meta"].get("doc_id"):
         background_tasks.add_task(
             enrich_paper, 
             summary=summary_text, 
@@ -373,13 +380,16 @@ def analyze_paper(data: PDFData, background_tasks: BackgroundTasks):
 @app.post("/store_paper")
 def store_paper(data: PaperStoreRequest, background_tasks: BackgroundTasks):
     try:
-        add_paper_to_db(
+        uid = add_paper_to_db(
             title=data.title,
             summary=data.summary,
             insights=data.insights,
             metadata=data.metadata,
         )
         
+        if uid:
+            data.metadata["doc_id"] = uid
+
         # For /store_paper, we might not have full_text if it wasn't passed.
         # But looking at the existing code, /store_paper is usually called after /analyze_paper 
         # or from a context where we might want to re-download if possible.
@@ -421,6 +431,20 @@ def search_papers(data: PaperQueryRequest):
         results = query_papers(data.query, data.n_results)
         return results
     except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/chat_rag")
+def chat_rag(data: ChatRequest):
+    """
+    RAG Chat endpoint.
+    Retrieves enriched chunks, compresses context, and generates answer.
+    """
+    try:
+        response = generate_rag_response(data.message, data.context_ids)
+        return response
+    except Exception as e:
+        print(f"⚠️ Chat RAG error: {e}")
         return {"error": str(e)}
 
 
