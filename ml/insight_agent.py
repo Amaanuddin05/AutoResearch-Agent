@@ -8,7 +8,7 @@ app = FastAPI()
 
 llm = OllamaLLM(
     model="llama3:8b",
-    base_url="http://192.168.1.36:11434"
+    base_url="http://100.74.147.124:11434"
 )
 
 prompt = ChatPromptTemplate.from_template("""

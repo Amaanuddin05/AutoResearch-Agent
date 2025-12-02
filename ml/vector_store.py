@@ -131,3 +131,61 @@ def query_papers(query: str, n_results: int = 3):
         })
 
     return {"papers": items}
+
+
+def store_enriched_chunks(chunks: list, metadata: dict):
+    """
+    Store a list of enriched chunks (section summaries, paragraphs, concepts, etc.)
+    into ChromaDB as separate documents.
+    
+    chunks: list of dicts, e.g. [{"chunk_type": "...", "content": "...", ...}]
+    metadata: base metadata from the paper (title, authors, etc.)
+    """
+    if not chunks:
+        return
+
+    ids = []
+    documents = []
+    embeddings = []
+    metadatas = []
+
+    print(f"Storing {len(chunks)} enriched chunks...")
+
+    for chunk in chunks:
+        content = chunk.get("content", "").strip()
+        if not content:
+            continue
+
+        # Merge base metadata with chunk-specific metadata
+        chunk_meta = metadata.copy()
+        chunk_meta.update(chunk)
+        
+        # Remove 'content' from metadata to avoid duplication/bloat
+        chunk_meta.pop("content", None)
+        
+        # Sanitize metadata
+        chunk_meta = _sanitize_metadata(chunk_meta)
+        
+        # Generate embedding
+        emb = embed_text(content)
+        
+        # Generate ID
+        uid = str(uuid.uuid4())
+        
+        ids.append(uid)
+        documents.append(content)
+        embeddings.append(emb)
+        metadatas.append(chunk_meta)
+
+    if ids:
+        try:
+            collection.add(
+                ids=ids,
+                documents=documents,
+                embeddings=embeddings,
+                metadatas=metadatas
+            )
+            print(f"Successfully stored {len(ids)} enriched chunks in ChromaDB.")
+        except Exception as e:
+            print(f"Failed to store enriched chunks: {e}")
+

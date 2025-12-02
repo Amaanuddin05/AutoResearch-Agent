@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from langchain_ollama import OllamaLLM
 import fitz  # PyMuPDF
 import os, re, json, requests
 import tempfile
-from vector_store import add_paper_to_db, query_papers
+from vector_store import add_paper_to_db, query_papers, store_enriched_chunks
+from summarizer_agent import extract_section_summaries, rewrite_paragraphs, extract_concepts
 
 app = FastAPI(title="AutoResearch Summarizer + Insight Service")
 
@@ -236,10 +237,89 @@ def extract_insights(data: SummaryData):
     return {"insights": insights}
 
 
+# =============== ENRICHMENT PIPELINE ===============
+
+def explode_insights(insights: dict) -> list:
+    """
+    Converts insights dictionary into a list of atomic chunks.
+    """
+    chunks = []
+    # Map insight keys to meaningful chunk types
+    key_map = {
+        "findings": "finding",
+        "methods": "method",
+        "datasets": "dataset",
+        "limitations": "limitation",
+        "implications": "implication",
+        "citations": "citation"
+    }
+    
+    for key, items in insights.items():
+        if isinstance(items, list):
+            chunk_type = key_map.get(key, "insight")
+            for item in items:
+                if isinstance(item, str) and len(item) > 10:
+                    chunks.append({
+                        "chunk_type": chunk_type,
+                        "content": item
+                    })
+    return chunks
+
+
+def enrich_paper(summary: str, insights: dict, full_text: str, metadata: dict):
+    """
+    Background task to run the full enrichment pipeline.
+    """
+    print(f" Starting enrichment for: {metadata.get('title', 'Unknown')}")
+    
+    all_chunks = []
+    
+    # 1. Section Summaries
+    if full_text:
+        sections = extract_section_summaries(full_text)
+        for sec in sections:
+            all_chunks.append({
+                "chunk_type": "section_summary",
+                "section": sec.get("section"),
+                "content": sec.get("content")
+            })
+            
+    # 2. Paragraph Rewrites
+    if full_text:
+        rewrites = rewrite_paragraphs(full_text)
+        for i, rw in enumerate(rewrites):
+            all_chunks.append({
+                "chunk_type": "paragraph_rewrite",
+                "paragraph_index": i,
+                "content": rw
+            })
+            
+    # 3. Explode Insights
+    insight_chunks = explode_insights(insights)
+    all_chunks.extend(insight_chunks)
+    
+    # 4. Concept Nodes
+    concepts = extract_concepts(summary)
+    for c in concepts:
+        content = f"{c.get('concept')}: {c.get('description')}"
+        all_chunks.append({
+            "chunk_type": "concept",
+            "content": content
+        })
+        
+    # 5. Store all chunks
+    if all_chunks:
+        store_enriched_chunks(all_chunks, metadata)
+        print(f" Enrichment completed for: {metadata.get('title')}")
+    else:
+        print("No enrichment chunks generated.")
+
+
+
 # =============== 3️⃣ FULL PIPELINE ===============
 
 @app.post("/analyze_paper")
-def analyze_paper(data: PDFData):
+def analyze_paper(data: PDFData, background_tasks: BackgroundTasks):
     print("🚀 Starting full analysis pipeline...")
     pdf_path = data.path
     if pdf_path.startswith("http"):
@@ -275,13 +355,23 @@ def analyze_paper(data: PDFData):
     except Exception as e:
         print("⚠️ Could not store in ChromaDB:", e)
 
+    # Trigger enrichment in background
+    if full_text and summary_text:
+        background_tasks.add_task(
+            enrich_paper, 
+            summary=summary_text, 
+            insights=insights, 
+            full_text=full_text, 
+            metadata=summary_data["meta"]
+        )
+
     return {"summary": summary_data, "insights": insights}
 
 
 # =============== 4️⃣ CHROMA DB STORAGE & SEARCH ===============
 
 @app.post("/store_paper")
-def store_paper(data: PaperStoreRequest):
+def store_paper(data: PaperStoreRequest, background_tasks: BackgroundTasks):
     try:
         add_paper_to_db(
             title=data.title,
@@ -289,7 +379,38 @@ def store_paper(data: PaperStoreRequest):
             insights=data.insights,
             metadata=data.metadata,
         )
-        return {"message": f"Stored '{data.title}' in ChromaDB successfully ✅"}
+        
+        # For /store_paper, we might not have full_text if it wasn't passed.
+        # But looking at the existing code, /store_paper is usually called after /analyze_paper 
+        # or from a context where we might want to re-download if possible.
+        # However, the user request says: "run_enrichment_pipeline(summary, insights, full_pdf_text, metadata)"
+        # The PaperStoreRequest doesn't have full_text.
+        # We can try to download if pdf_url is in metadata.
+        
+        pdf_url = data.metadata.get("pdf_url")
+        if pdf_url and pdf_url != "N/A":
+            # We need to fetch text. This might be slow, so definitely background it.
+            def fetch_and_enrich(url, summary, insights, meta):
+                print("Downloading PDF for enrichment...")
+                path = download_pdf(url)
+                if path:
+                    try:
+                        doc = fitz.open(path)
+                        text = "".join(page.get_text() for page in doc)
+                        doc.close()
+                        os.remove(path) # Clean up
+                        enrich_paper(summary, insights, text, meta)
+                    except Exception as e:
+                        print(f"Failed to extract text for enrichment: {e}")
+                else:
+                    print("Failed to download PDF for enrichment")
+
+            background_tasks.add_task(fetch_and_enrich, pdf_url, data.summary, data.insights, data.metadata)
+        else:
+            # If no PDF, we can still do concept extraction and insight explosion
+            background_tasks.add_task(enrich_paper, data.summary, data.insights, "", data.metadata)
+
+        return {"message": f"Stored '{data.title}' in ChromaDB successfully ✅ (Enrichment started)"}
     except Exception as e:
         return {"error": str(e)}
 
