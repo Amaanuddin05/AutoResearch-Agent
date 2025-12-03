@@ -137,12 +137,16 @@ def generate_rag_response(message: str, context_ids: list = None):
         for c in chunks:
             meta = c.get("metadata", {})
             doc_id = meta.get("doc_id")
-            if doc_id and doc_id not in unique_sources:
-                unique_sources[doc_id] = {
+            # Create a unique key based on doc_id and chunk_type to show variety
+            key = f"{doc_id}_{meta.get('chunk_type')}"
+            
+            if doc_id and key not in unique_sources:
+                unique_sources[key] = {
                     "title": meta.get("title", "Unknown"),
                     "doc_id": doc_id,
-                    "chunk_type": meta.get("chunk_type", "generic")
+                    "chunk_type": meta.get("chunk_type", "generic"),
+                    "section": meta.get("section", "General")
                 }
-        result["sources"] = list(unique_sources.values())[:5]
+        result["sources"] = list(unique_sources.values())[:10]
         
     return result

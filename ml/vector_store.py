@@ -78,12 +78,14 @@ def add_paper_to_db(title: str, summary: str, insights: Any, metadata: dict, doc
 
         # Make metadata safe
         metadata_with_insights = dict(metadata or {})
+        metadata_with_insights["title"] = title  # ← Ensure title is stored
         metadata_with_insights["insights"] = json.dumps(insights_dict)  # ← JSON-encoded here
         metadata_with_insights["doc_id"] = uid # Ensure doc_id is in metadata
+        metadata_with_insights["entry_type"] = "paper" # Tag as main paper entry
         metadata_with_insights = _sanitize_metadata(metadata_with_insights)
 
-        # Store in ChromaDB
-        collection.add(
+        # Store in ChromaDB (upsert to handle updates)
+        collection.upsert(
             ids=[uid],
             documents=[combined_text],
             embeddings=[embedding],
@@ -104,7 +106,12 @@ def add_paper_to_db(title: str, summary: str, insights: Any, metadata: dict, doc
 def query_papers(query: str, n_results: int = 3):
     """Retrieve top similar papers and normalize output for frontend."""
     query_emb = embed_text(query)
-    results = collection.query(query_embeddings=[query_emb], n_results=n_results)
+    # Filter to only return main paper entries
+    results = collection.query(
+        query_embeddings=[query_emb], 
+        n_results=n_results,
+        where={"entry_type": "paper"} 
+    )
 
     ids = (results.get("ids") or [[]])[0]
     docs = (results.get("documents") or [[]])[0]
@@ -123,8 +130,11 @@ def query_papers(query: str, n_results: int = 3):
             except Exception:
                 insights_data = {"raw_output": insights_data}
 
+        # Use doc_id from metadata if available, otherwise fallback to Chroma ID
+        paper_id = meta.get("doc_id") or _id
+
         items.append({
-            "id": _id,
+            "id": paper_id,
             "title": meta.get("title") or _id,
             "authors": meta.get("authors", "Unknown"),
             "published": meta.get("published", "N/A"),
@@ -164,6 +174,7 @@ def store_enriched_chunks(chunks: list, metadata: dict):
         # Merge base metadata with chunk-specific metadata
         chunk_meta = metadata.copy()
         chunk_meta.update(chunk)
+        chunk_meta["entry_type"] = "chunk" # Tag as enriched chunk
         
         # Remove 'content' from metadata to avoid duplication/bloat
         chunk_meta.pop("content", None)

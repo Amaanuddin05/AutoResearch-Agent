@@ -2,7 +2,7 @@ from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from langchain_ollama import OllamaLLM
 import fitz  # PyMuPDF
-import os, re, json, requests
+import os, re, json, requests, uuid
 import tempfile
 from vector_store import add_paper_to_db, query_papers, store_enriched_chunks
 from summarizer_agent import extract_section_summaries, rewrite_paragraphs, extract_concepts
@@ -323,59 +323,114 @@ def enrich_paper(summary: str, insights: dict, full_text: str, metadata: dict):
 
 # =============== 3️⃣ FULL PIPELINE ===============
 
+# =============== 3️⃣ FULL PIPELINE (ASYNC) ===============
+
+analysis_jobs = {}
+
+def process_analysis(job_id: str, data: PDFData, background_tasks: BackgroundTasks):
+    try:
+        print(f"🚀 Starting background analysis for job {job_id}...")
+        analysis_jobs[job_id] = {"status": "processing", "progress": 0, "message": "Starting..."}
+        
+        pdf_path = data.path
+        if pdf_path.startswith("http"):
+            analysis_jobs[job_id]["message"] = "Downloading PDF..."
+            pdf_path = download_pdf(pdf_path)
+            if not pdf_path:
+                analysis_jobs[job_id] = {"status": "failed", "error": "Failed to download PDF"}
+                return
+
+        data.path = pdf_path
+        
+        # Extract full text
+        analysis_jobs[job_id]["message"] = "Extracting text..."
+        analysis_jobs[job_id]["progress"] = 10
+        
+        full_text = ""
+        try:
+            doc = fitz.open(pdf_path)
+            full_text = "".join(page.get_text() for page in doc)
+            doc.close()
+        except Exception as e:
+            print(f"⚠️ Failed to extract text: {e}")
+
+        # Summarize
+        analysis_jobs[job_id]["message"] = "Summarizing paper..."
+        analysis_jobs[job_id]["progress"] = 20
+        
+        # We need to modify summarize_pdf to report progress or just estimate
+        # For now, we'll just call it synchronously as it was
+        summary_data = summarize_pdf(data)
+        
+        if "error" in summary_data:
+            analysis_jobs[job_id] = {"status": "failed", "error": summary_data["error"]}
+            return
+
+        analysis_jobs[job_id]["progress"] = 60
+        analysis_jobs[job_id]["message"] = "Extracting insights..."
+
+        # Build normalized summary text
+        summary_text = (
+            normalize_text(summary_data.get("abstract", "")) + "\n" +
+            normalize_text(summary_data.get("objectives", "")) + "\n" +
+            normalize_text(summary_data.get("methodology", "")) + "\n" +
+            normalize_text(summary_data.get("findings", "")) + "\n" +
+            normalize_text(summary_data.get("limitations", "")) + "\n" +
+            normalize_text(summary_data.get("key_points", []))
+        )
+
+        result = extract_insights(SummaryData(summary=summary_text))
+        insights = result.get("insights", result)
+
+        analysis_jobs[job_id]["progress"] = 80
+        analysis_jobs[job_id]["message"] = "Storing in database..."
+
+        doc_id = summary_data["meta"].get("id") or summary_data["meta"].get("doc_id")
+        
+        try:
+            uid = add_paper_to_db(
+                title=summary_data["meta"]["title"],
+                summary=summary_text,
+                insights=insights,
+                metadata=summary_data["meta"],
+                doc_id=doc_id
+            )
+            if uid:
+                summary_data["meta"]["doc_id"] = uid
+        except Exception as e:
+            print("⚠️ Could not store in ChromaDB:", e)
+
+        # Trigger enrichment
+        if full_text and summary_text and summary_data["meta"].get("doc_id"):
+            analysis_jobs[job_id]["message"] = "Enriching content..."
+            # Run enrichment synchronously here or spawn another task? 
+            # Since we are already in a background task, we can run it here or just let it be.
+            # But to show 100% only when done, let's run it here.
+            enrich_paper(summary_text, insights, full_text, summary_data["meta"])
+
+        analysis_jobs[job_id]["progress"] = 100
+        analysis_jobs[job_id]["status"] = "completed"
+        analysis_jobs[job_id]["result"] = {"summary": summary_data, "insights": insights}
+        print(f"✅ Job {job_id} completed.")
+
+    except Exception as e:
+        print(f"❌ Job {job_id} failed: {e}")
+        analysis_jobs[job_id] = {"status": "failed", "error": str(e)}
+
+
 @app.post("/analyze_paper")
 def analyze_paper(data: PDFData, background_tasks: BackgroundTasks):
-    print("🚀 Starting full analysis pipeline...")
-    pdf_path = data.path
-    if pdf_path.startswith("http"):
-        pdf_path = download_pdf(pdf_path)
-        if not pdf_path:
-            return {"error": "Failed to download PDF"}
+    job_id = str(uuid.uuid4())
+    background_tasks.add_task(process_analysis, job_id, data, background_tasks)
+    return {"job_id": job_id, "status": "processing"}
 
-    data.path = pdf_path
-    summary_data = summarize_pdf(data)
-    if "error" in summary_data:
-        return summary_data
 
-    # Build normalized summary text from structured data
-    summary_text = (
-        normalize_text(summary_data.get("abstract", "")) + "\n" +
-        normalize_text(summary_data.get("objectives", "")) + "\n" +
-        normalize_text(summary_data.get("methodology", "")) + "\n" +
-        normalize_text(summary_data.get("findings", "")) + "\n" +
-        normalize_text(summary_data.get("limitations", "")) + "\n" +
-        normalize_text(summary_data.get("key_points", []))
-    )
-
-    result = extract_insights(SummaryData(summary=summary_text))
-    insights = result.get("insights", result)  # fallback to full result if key missing
-
-    doc_id = summary_data["meta"].get("id") or summary_data["meta"].get("doc_id")
-    
-    try:
-        uid = add_paper_to_db(
-            title=summary_data["meta"]["title"],
-            summary=summary_text,
-            insights=insights,
-            metadata=summary_data["meta"],
-            doc_id=doc_id
-        )
-        if uid:
-            summary_data["meta"]["doc_id"] = uid
-    except Exception as e:
-        print("⚠️ Could not store in ChromaDB:", e)
-
-    # Trigger enrichment in background
-    if full_text and summary_text and summary_data["meta"].get("doc_id"):
-        background_tasks.add_task(
-            enrich_paper, 
-            summary=summary_text, 
-            insights=insights, 
-            full_text=full_text, 
-            metadata=summary_data["meta"]
-        )
-
-    return {"summary": summary_data, "insights": insights}
+@app.get("/analysis_status/{job_id}")
+def get_analysis_status(job_id: str):
+    job = analysis_jobs.get(job_id)
+    if not job:
+        return {"status": "not_found"}
+    return job
 
 
 # =============== 4️⃣ CHROMA DB STORAGE & SEARCH ===============

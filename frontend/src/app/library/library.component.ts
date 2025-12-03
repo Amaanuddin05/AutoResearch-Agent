@@ -1,24 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-interface SearchResult {
-  id: string;
-  title: string;
-  authors: string;
-  year: string;
-  abstract: string;
-  matchPercentage: number;
-  isSelected: boolean;
-}
-
-interface PaperDetail {
-  title: string;
-  authors: string;
-  institution: string;
-  abstract: string;
-  keywords: string[];
-}
+import { Router } from '@angular/router';
+import { Paper, PaperService } from '../services/paper.service';
 
 @Component({
   selector: 'app-library',
@@ -26,96 +10,86 @@ interface PaperDetail {
   templateUrl: './library.component.html',
   styleUrl: './library.component.scss'
 })
-export class LibraryComponent {
+export class LibraryComponent implements OnInit {
   searchQuery: string = '';
-  selectedSort: string = 'Relevance';
+  selectedSort: string = 'Date Added';
   
-  activeFilters: string[] = ['Machine Learning', 'Neuroscience'];
+  activeFilters: string[] = [];
   
   sortOptions: string[] = [
     'Relevance',
     'Date Added',
-    'Citation Count',
     'Title A-Z'
   ];
 
-  searchResults: SearchResult[] = [
-    {
-      id: '1',
-      title: 'Attention Is All You Need',
-      authors: 'Ashish Vaswani, Noam Shazeer, et al.',
-      year: '2017',
-      abstract: 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism...',
-      matchPercentage: 92,
-      isSelected: true
-    },
-    {
-      id: '2',
-      title: 'BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding',
-      authors: 'Jacob Devlin, Ming-Wei Chang, et al.',
-      year: '2018',
-      abstract: 'We introduce a new language representation model called BERT, which stands for Bidirectional Encoder Representations from Transformers. Unlike recent language representation models, BERT is designed to pre-train deep bidirectional representations...',
-      matchPercentage: 88,
-      isSelected: false
-    },
-    {
-      id: '3',
-      title: 'Generative Adversarial Networks',
-      authors: 'Ian J. Goodfellow, Jean Pouget-Abadie, et al.',
-      year: '2014',
-      abstract: 'We propose a new framework for estimating generative models via an adversarial process, in which we simultaneously train two models: a generative model G that captures the data distribution, and a discriminative model D that estimates the probability...',
-      matchPercentage: 81,
-      isSelected: false
-    }
-  ];
+  savedPapers: Paper[] = [];
+  filteredPapers: Paper[] = [];
+  selectedPaper: Paper | null = null;
 
-  selectedPaperDetail: PaperDetail = {
-    title: 'Attention Is All You Need',
-    authors: 'Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin',
-    institution: 'Google Brain, Google Research, University of Toronto',
-    abstract: 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks in an encoder-decoder configuration. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU.',
-    keywords: ['Transformer', 'Attention Mechanism', 'NLP']
-  };
+  constructor(
+    private paperService: PaperService,
+    private router: Router
+  ) {}
+
+  ngOnInit(): void {
+    this.loadPapers();
+  }
+
+  loadPapers(): void {
+    // First try to load from local storage
+    this.savedPapers = this.paperService.getAllPapers();
+    this.filteredPapers = [...this.savedPapers];
+    
+    if (this.savedPapers.length > 0) {
+      this.selectedPaper = this.savedPapers[0];
+    }
+
+    // Also sync with ChromaDB in background
+    this.paperService.loadPapers().subscribe({
+      next: (papers) => {
+        // Optional: Merge or update logic if needed
+        // For now, we rely on local storage for the library view
+        // but this ensures the service has the latest state
+      }
+    });
+  }
 
   searchPapers(): void {
-    console.log('Searching for:', this.searchQuery);
-  }
-
-  selectResult(resultId: string): void {
-    this.searchResults.forEach(result => {
-      result.isSelected = result.id === resultId;
-    });
-    
-    const selectedResult = this.searchResults.find(r => r.id === resultId);
-    if (selectedResult) {
-      // Update detail panel with selected paper
-      console.log('Selected paper:', selectedResult.title);
+    if (!this.searchQuery.trim()) {
+      this.filteredPapers = [...this.savedPapers];
+      return;
     }
+    
+    const query = this.searchQuery.toLowerCase();
+    this.filteredPapers = this.savedPapers.filter(p => 
+      p.title.toLowerCase().includes(query) || 
+      p.authors.some(a => a.toLowerCase().includes(query))
+    );
   }
 
-  removeFilter(filter: string): void {
-    this.activeFilters = this.activeFilters.filter(f => f !== filter);
+  selectPaper(paper: Paper): void {
+    this.selectedPaper = paper;
   }
 
-  addFilter(): void {
-    console.log('Add new filter');
+  viewSummary(paperId: string): void {
+    this.router.navigate(['/analyze', paperId]);
+  }
+  
+  chatWithPaper(paperId: string): void {
+    this.router.navigate(['/chat'], { queryParams: { paperId } });
   }
 
-  viewPDF(): void {
-    console.log('Opening PDF...');
+  deletePaper(paperId: string): void {
+    if (!confirm('Are you sure you want to remove this paper from your library?')) return;
+    
+    this.paperService.removeFromLibrary(paperId);
+    this.loadPapers(); // Refresh list
+    
+    // Also try to delete from backend
+    this.paperService.deletePaperFromDB(paperId).subscribe();
   }
 
-  copyCitation(): void {
-    console.log('Copying citation...');
-  }
-
-  addToCollection(): void {
-    console.log('Adding to collection...');
-  }
-
-  getMatchColor(percentage: number): string {
-    if (percentage >= 90) return 'match-high';
-    if (percentage >= 80) return 'match-medium';
-    return 'match-low';
+  viewPDF(url: string | null): void {
+    if (url) window.open(url, '_blank');
   }
 }

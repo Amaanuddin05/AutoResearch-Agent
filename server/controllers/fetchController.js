@@ -79,17 +79,19 @@ export const fetchPapers = async (req, res) => {
     let papers = entries.map(mapEntryToPaper);
 
     if (filter === "popular") {
-      const enriched = [];
-      for (const p of papers) {
-        const meta = await getPaperMetadata(p);
-        const merged = {
+      const metadataPromises = papers.map(p => getPaperMetadata(p));
+      const metadataResults = await Promise.all(metadataPromises);
+
+      papers = papers.map((p, index) => {
+        const meta = metadataResults[index];
+        return {
           ...p,
           citationCount: meta?.citationCount || 0,
           influentialCitationCount: meta?.influentialCitationCount || 0
         };
-        enriched.push(merged);
-      }
-      papers = enriched.sort((a, b) => b.citationCount - a.citationCount);
+      });
+
+      papers.sort((a, b) => b.citationCount - a.citationCount);
     }
 
     papers = papers.map(normalizePaper);
@@ -113,30 +115,43 @@ export const fetchAndSummarize = async (req, res) => {
       return res.status(400).json({ error: "Invalid input parameters" });
     }
 
-    let url;
+    let paper;
 
-    if (query && query.trim().length > 0) {
-      const q = buildTitleQuery(query);
-      url = `http://export.arxiv.org/api/query?search_query=${q}&max_results=${max_results}`;
-    } else {
-      const q = buildCategoryQuery(category, filter);
-      url = `http://export.arxiv.org/api/query?${q}&max_results=${max_results}`;
-    }
-
-    const response = await axios.get(url);
-    const entries = await parseFeedEntries(response.data);
-
-    if (!entries.length) return res.json({ message: "No papers found." });
-
-    let paper = mapEntryToPaper(entries[0]);
-
-    if (filter === "popular") {
-      const meta = await getPaperMetadata(paper);
+    // 1. Check if specific paper details are provided (Direct Analysis)
+    if (req.body.pdf_url && req.body.metadata) {
       paper = {
-        ...paper,
-        citationCount: meta?.citationCount || 0,
-        influentialCitationCount: meta?.influentialCitationCount || 0
+        ...req.body.metadata,
+        pdf_url: req.body.pdf_url
       };
+      // Ensure title is present
+      if (!paper.title) paper.title = "Untitled Paper";
+    }
+    // 2. Otherwise, perform search (Fallback/Default)
+    else {
+      let url;
+      if (query && query.trim().length > 0) {
+        const q = buildTitleQuery(query);
+        url = `http://export.arxiv.org/api/query?search_query=${q}&max_results=${max_results}`;
+      } else {
+        const q = buildCategoryQuery(category, filter);
+        url = `http://export.arxiv.org/api/query?${q}&max_results=${max_results}`;
+      }
+
+      const response = await axios.get(url);
+      const entries = await parseFeedEntries(response.data);
+
+      if (!entries.length) return res.json({ message: "No papers found." });
+
+      paper = mapEntryToPaper(entries[0]);
+
+      if (filter === "popular") {
+        const meta = await getPaperMetadata(paper);
+        paper = {
+          ...paper,
+          citationCount: meta?.citationCount || 0,
+          influentialCitationCount: meta?.influentialCitationCount || 0
+        };
+      }
     }
 
     paper = normalizePaper(paper);
@@ -153,21 +168,40 @@ export const fetchAndSummarize = async (req, res) => {
       metadata: paper,
     });
 
-    const summaryData = summaryResponse.data;
-    const summaryFile = path.join(SUMMARY_DIR, `${safeTitle}_summary.json`);
-    fs.writeFileSync(summaryFile, JSON.stringify(summaryData, null, 2));
-
-    const downloadUrl = `http://localhost:${process.env.PORT || 5000}/download/${encodeURIComponent(
-      path.basename(summaryFile)
-    )}`;
-
+    // Return job ID immediately
     res.json({
-      message: "Summary generated successfully",
-      paper_title: paper.title,
-      download_url: downloadUrl,
-      summary: summaryData,
+      message: "Analysis started",
+      job_id: summaryResponse.data.job_id,
+      paper_title: paper.title
     });
+
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch and summarize paper" });
+    res.status(500).json({ error: "Failed to start analysis" });
+  }
+};
+
+export const getAnalysisStatus = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const response = await axios.get(`http://127.0.0.1:8000/analysis_status/${jobId}`);
+    const statusData = response.data;
+
+    if (statusData.status === "completed") {
+      // Save results to file as before
+      const result = statusData.result;
+      const safeTitle = result.summary.meta.title.replace(/[^\w\s]/g, "_");
+      const summaryFile = path.join(SUMMARY_DIR, `${safeTitle}_summary.json`);
+      fs.writeFileSync(summaryFile, JSON.stringify(result, null, 2));
+
+      const downloadUrl = `http://localhost:${process.env.PORT || 5000}/download/${encodeURIComponent(
+        path.basename(summaryFile)
+      )}`;
+
+      statusData.download_url = downloadUrl;
+    }
+
+    res.json(statusData);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to get analysis status" });
   }
 };

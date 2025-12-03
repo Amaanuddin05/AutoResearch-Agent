@@ -20,14 +20,17 @@ export class FetchService {
   }
 
   fetchAndSummarize(payload: {
-  query?: string;
-  category?: string;
-  filter?: string;
-  max_results?: number;
-  pdf_url?: string;
-  metadata?: any;
-}): Observable<any> {
-  return this.http.post(`${this.apiUrl}/fetch_and_summarize`, payload);
-}
+    query?: string;
+    category?: string;
+    filter?: string;
+    max_results?: number;
+    pdf_url?: string;
+    metadata?: any;
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/fetch_and_summarize`, payload);
+  }
 
+  getAnalysisStatus(jobId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/status/${jobId}`);
+  }
 }

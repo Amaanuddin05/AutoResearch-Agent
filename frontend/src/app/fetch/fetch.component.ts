@@ -185,73 +185,97 @@ export class FetchComponent {
   }
 
   analyzeAndSave(paper: Paper): void {
-  if (!paper || !paper.pdf_url) {
-    alert("This paper has no PDF URL.");
-    return;
+    if (!paper || !paper.pdf_url) {
+      alert("This paper has no PDF URL.");
+      return;
+    }
+
+    this.isAnalyzing = true;
+    this.progress = 0;
+
+    const payload = {
+      pdf_url: paper.pdf_url,
+      metadata: {
+        id: paper.id,
+        title: paper.title,
+        authors: paper.authors,
+        published: paper.published,
+        pdf_url: paper.pdf_url
+      }
+    };
+
+    this.fetchService.fetchAndSummarize(payload).subscribe({
+      next: (res: any) => {
+        if (res.job_id) {
+          this.pollProgress(res.job_id);
+        } else {
+          // Fallback for immediate response (should not happen with new backend)
+          this.handleAnalysisComplete(res);
+        }
+      },
+      error: () => {
+        this.isAnalyzing = false;
+        alert("Failed to start analysis.");
+      }
+    });
   }
 
-  this.isAnalyzing = true;
-  this.progress = 0;
-
-  this.progressInterval = setInterval(() => {
-    if (this.progress < 95) this.progress += 5;
-  }, 2000);
-
-  const payload = {
-    pdf_url: paper.pdf_url,
-    metadata: {
-      id: paper.id,
-      title: paper.title,
-      authors: paper.authors,
-      published: paper.published,
-      pdf_url: paper.pdf_url
-    }
-  };
-
-  this.fetchService.fetchAndSummarize(payload).subscribe({
-      next: (res: any) => {
-        this.progress = 100;
-        clearInterval(this.progressInterval);
-
-        // Check for nested structure from /analyze_paper
-        // res.summary contains { summary: {...}, insights: {...} }
-        const data = res.summary || {};
-        const summaryObj = data.summary || {};
-        const insightsObj = data.insights || {};
-        const meta = summaryObj.meta;
-
-        // Save to Library if metadata exists
-        if (meta) {
-           // Merge summary and insights for the frontend
-           const mergedInsights = { ...summaryObj, ...insightsObj };
-
-           // Map to PaperService Paper interface
-           const newPaper: any = {
-             id: meta.doc_id || meta.id,
-             title: meta.title,
-             authors: Array.isArray(meta.authors) ? meta.authors : [meta.authors],
-             summary: summaryObj.abstract || summaryObj.raw_summary || '',
-             published: meta.published,
-             pdf_url: meta.pdf_url,
-             insights: mergedInsights, // Store merged data
-             dateAdded: new Date().toISOString(),
-             source: 'Arxiv'
-           };
-           this.paperService.addToLibrary(newPaper);
-        }
-
-        setTimeout(() => {
+  pollProgress(jobId: string): void {
+    const pollInterval = setInterval(() => {
+      this.fetchService.getAnalysisStatus(jobId).subscribe({
+        next: (status: any) => {
+          if (status.status === 'processing') {
+            this.progress = status.progress || this.progress;
+          } else if (status.status === 'completed') {
+            clearInterval(pollInterval);
+            this.progress = 100;
+            this.handleAnalysisComplete(status.result);
+          } else if (status.status === 'failed') {
+            clearInterval(pollInterval);
+            this.isAnalyzing = false;
+            alert(`Analysis failed: ${status.error}`);
+          }
+        },
+        error: () => {
+          clearInterval(pollInterval);
           this.isAnalyzing = false;
-          this.router.navigate(['/library']);
-        }, 500);
-      },
-    error: () => {
-      clearInterval(this.progressInterval);
-      this.isAnalyzing = false;
-      alert("Failed to analyze this paper.");
+          alert("Lost connection to analysis service.");
+        }
+      });
+    }, 1000);
+  }
+
+  handleAnalysisComplete(data: any): void {
+    // Check for nested structure
+    const summaryObj = data.summary || {};
+    const insightsObj = data.insights || {};
+    const meta = summaryObj.meta;
+
+    // Save to Library if metadata exists
+    if (meta) {
+       // Merge summary and insights for the frontend
+       const mergedInsights = { ...summaryObj, ...insightsObj };
+
+       // Map to PaperService Paper interface
+       const newPaper: any = {
+         id: meta.doc_id || meta.id,
+         title: meta.title,
+         authors: Array.isArray(meta.authors) ? meta.authors : [meta.authors],
+         summary: summaryObj.abstract || summaryObj.raw_summary || '',
+         published: meta.published,
+         pdf_url: meta.pdf_url,
+         insights: mergedInsights, // Store merged data
+         dateAdded: new Date().toISOString(),
+         source: 'Arxiv'
+       };
+       this.paperService.addToLibrary(newPaper);
     }
-  });
-}
+
+    setTimeout(() => {
+      this.isAnalyzing = false;
+      this.router.navigate(['/library']);
+    }, 500);
+  }
 
 
   openPDF(paperId: string): void {

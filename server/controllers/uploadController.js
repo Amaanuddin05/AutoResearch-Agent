@@ -11,8 +11,12 @@ export const uploadPdf = async (req, res) => {
     const filePath = path.resolve(req.file.path);
     console.log(`Received file: ${filePath}`);
 
-    const response = await axios.post("http://127.0.0.1:8000/summarize_pdf", {
+    const response = await axios.post("http://127.0.0.1:8000/analyze_paper", {
       path: filePath,
+      metadata: {
+        title: req.file.originalname.replace(".pdf", ""),
+        source: "upload"
+      }
     });
 
     console.log("Summary generated");

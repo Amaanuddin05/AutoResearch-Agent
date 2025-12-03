@@ -22,24 +22,10 @@
           </div>
         </div>
 
-        <!-- Filters & Sort -->
-        <div class="library__controls">
-          <div class="filters">
-            <button
-              *ngFor="let filter of activeFilters"
-              class="filter-tag"
-              (click)="removeFilter(filter)"
-            >
-              <span>{{ filter }}</span>
-              <span class="material-symbols-outlined filter-tag__close">close</span>
-            </button>
-            <button class="filter-tag filter-tag--add" (click)="addFilter()">
-              <span class="material-symbols-outlined">add</span>
-              <span>Add Filter</span>
-            </button>
-          </div>
-
-          <div class="sort-control">
+          <!-- Filters & Sort (Filters temporarily disabled) -->
+          <div class="library__controls">
+            <!-- <div class="filters"> ... </div> -->
+            <div class="sort-control">
             <label class="sort-control__label" for="sort">Sort by:</label>
             <select
               id="sort"
@@ -58,63 +44,55 @@
 
         <!-- Results List -->
         <div class="library__results">
+          <div *ngIf="filteredPapers.length === 0" class="no-results">
+            <p>No papers found in your library.</p>
+          </div>
+
           <div
-            *ngFor="let result of searchResults"
+            *ngFor="let paper of filteredPapers"
             class="result-card"
-            [class.result-card--selected]="result.isSelected"
-            (click)="selectResult(result.id)"
+            [class.result-card--selected]="selectedPaper?.id === paper.id"
+            (click)="selectPaper(paper)"
           >
             <div class="result-card__header">
-              <h3 class="result-card__title">{{ result.title }}</h3>
-              <div class="match-badge" [ngClass]="getMatchColor(result.matchPercentage)">
-                <span class="material-symbols-outlined">signal_cellular_alt</span>
-                <span class="match-badge__text">{{ result.matchPercentage }}% Match</span>
-              </div>
+              <h3 class="result-card__title">{{ paper.title }}</h3>
             </div>
-            <p class="result-card__authors">{{ result.authors }} ({{ result.year }})</p>
-            <p class="result-card__abstract">{{ result.abstract }}</p>
+            <p class="result-card__authors">{{ paper.authors.join(', ') }} ({{ paper.published | date:'yyyy' }})</p>
+            <p class="result-card__abstract">{{ paper.summary | slice:0:200 }}...</p>
           </div>
         </div>
       </div>
 
       <!-- Right Column: Paper Details -->
-      <aside class="library__sidebar">
+      <aside class="library__sidebar" *ngIf="selectedPaper">
         <div class="detail-panel">
           <div class="detail-panel__section">
-            <h2 class="detail-panel__title">{{ selectedPaperDetail.title }}</h2>
-            <p class="detail-panel__authors">{{ selectedPaperDetail.authors }}</p>
-            <p class="detail-panel__institution">{{ selectedPaperDetail.institution }}</p>
+            <h2 class="detail-panel__title">{{ selectedPaper.title }}</h2>
+            <p class="detail-panel__authors">{{ selectedPaper.authors.join(', ') }}</p>
+            <p class="detail-panel__institution">Published: {{ selectedPaper.published | date:'mediumDate' }}</p>
           </div>
 
           <div class="detail-panel__section">
-            <h4 class="detail-panel__section-title">ABSTRACT</h4>
-            <p class="detail-panel__abstract">{{ selectedPaperDetail.abstract }}</p>
-          </div>
-
-          <div class="detail-panel__section">
-            <h4 class="detail-panel__section-title">KEYWORDS</h4>
-            <div class="keyword-tags">
-              <span
-                *ngFor="let keyword of selectedPaperDetail.keywords"
-                class="keyword-tag"
-              >
-                {{ keyword }}
-              </span>
-            </div>
+            <h4 class="detail-panel__section-title">SUMMARY</h4>
+            <p class="detail-panel__abstract">{{ selectedPaper.summary }}</p>
           </div>
 
           <div class="detail-panel__actions">
-            <button class="detail-panel__button detail-panel__button--primary" (click)="viewPDF()">
+            <button class="detail-panel__button detail-panel__button--primary" (click)="viewSummary(selectedPaper.id)">
+              <span class="material-symbols-outlined">analytics</span>
+              <span>Analyze</span>
+            </button>
+            <button class="detail-panel__button detail-panel__button--secondary" (click)="chatWithPaper(selectedPaper.id)">
+              <span class="material-symbols-outlined">chat</span>
+              <span>Chat</span>
+            </button>
+            <button class="detail-panel__button detail-panel__button--secondary" (click)="viewPDF(selectedPaper.pdf_url)">
               <span class="material-symbols-outlined">picture_as_pdf</span>
               <span>View PDF</span>
             </button>
-            <button class="detail-panel__button detail-panel__button--secondary" (click)="copyCitation()">
-              <span class="material-symbols-outlined">format_quote</span>
-              <span>Copy Citation</span>
-            </button>
-            <button class="detail-panel__button detail-panel__button--secondary" (click)="addToCollection()">
-              <span class="material-symbols-outlined">add_circle</span>
-              <span>Add to Collection</span>
+            <button class="detail-panel__button detail-panel__button--danger" (click)="deletePaper(selectedPaper.id)">
+              <span class="material-symbols-outlined">delete</span>
+              <span>Delete</span>
             </button>
           </div>
         </div>

@@ -6,7 +6,7 @@ export const chat = async (req, res) => {
 
         let context_ids = [];
         if (Array.isArray(context)) {
-            context_ids = context.map(c => c.id || c).filter(id => id);
+            context_ids = context.map(c => (c && c.id) || c).filter(id => id);
         }
 
         const payload = {

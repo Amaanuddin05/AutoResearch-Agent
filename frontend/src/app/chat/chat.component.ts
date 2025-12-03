@@ -39,26 +39,34 @@ export class ChatComponent {
     private chatService: ChatService,
     private paperService: PaperService,
     private route: ActivatedRoute
-  ) {
-    // Load saved papers as context
-    this.contextPapers = this.paperService.getAllPapers().map(p => ({...p, isSelected: false}));
-    
+  ) {}
+
+  ngOnInit() {
+    this.loadContextPapers();
+  }
+
+  loadContextPapers() {
+    this.paperService.loadPapers().subscribe({
+      next: (papers) => {
+        this.contextPapers = papers.map((p: Paper) => ({...p, isSelected: false}));
+        this.checkQueryParams();
+      },
+      error: (err) => {
+        console.error('Failed to load context papers:', err);
+        // Fallback to local storage if API fails
+        this.contextPapers = this.paperService.getAllPapers().map(p => ({...p, isSelected: false}));
+        this.checkQueryParams();
+      }
+    });
+  }
+
+  checkQueryParams() {
     // Check for query params
     this.route.queryParams.subscribe(params => {
       const paperId = params['paperId'];
       if (paperId) {
-        // Try to find paper in existing context or service
         let selected = this.contextPapers.find(p => p.id === paperId);
         
-        if (!selected) {
-          // Not in local storage context, try to get from service memory
-          const fromService = this.paperService.getPaperById(paperId);
-          if (fromService) {
-            selected = { ...fromService, isSelected: true };
-            this.contextPapers.push(selected);
-          }
-        }
-
         if (selected) {
            // Deselect others and select this one
            this.contextPapers.forEach(p => p.isSelected = (p.id === paperId));
@@ -73,13 +81,15 @@ export class ChatComponent {
         }
       }
       
-      // Default greeting
-      this.messages.push({
-        id: '0',
-        type: 'assistant',
-        content: 'Hello! I am your Research Agent. I can answer questions based on your saved papers. What would you like to know?',
-        timestamp: new Date()
-      });
+      // Default greeting if no specific paper selected
+      if (this.messages.length === 0) {
+        this.messages.push({
+          id: '0',
+          type: 'assistant',
+          content: 'Hello! I am your Research Agent. I can answer questions based on your saved papers. What would you like to know?',
+          timestamp: new Date()
+        });
+      }
     });
   }
 
