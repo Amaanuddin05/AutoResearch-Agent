@@ -3,50 +3,50 @@
 
   <div 
     class="container" 
-    [class.right-panel-active]="isSignUpMode" 
+    [class.right-panel-active]="isSignUpMode()" 
     aria-live="polite"
   >
 
   <!-- Sign Up Form -->
   <div class="form-container sign-up-container">
-    <form aria-label="Sign up form">
+    <form [formGroup]="signUpForm" (ngSubmit)="onSignUp()">
       <h1>Create Account</h1>
 
       <div class="social-container">
         <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
-        <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
+        <a (click)="onGoogleLogin()" class="social" style="cursor: pointer;"><i class="fab fa-google-plus-g"></i></a>
         <a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
       </div>
 
       <span>or use your email for registration</span>
 
-      <input type="text" placeholder="Name" />
-      <input type="email" placeholder="Email" />
-      <input type="password" placeholder="Password" />
+      <input type="text" formControlName="name" placeholder="Name" />
+      <input type="email" formControlName="email" placeholder="Email" />
+      <input type="password" formControlName="password" placeholder="Password" />
 
-      <button type="button">Sign Up</button>
+      <button type="submit" [disabled]="signUpForm.invalid">Sign Up</button>
     </form>
   </div>
 
   <!-- Sign In Form -->
   <div class="form-container sign-in-container">
-    <form>
+    <form [formGroup]="signInForm" (ngSubmit)="onSignIn()">
       <h1>Sign in</h1>
 
       <div class="social-container">
         <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
-        <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
+        <a (click)="onGoogleLogin()" class="social" style="cursor: pointer;"><i class="fab fa-google-plus-g"></i></a>
         <a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
       </div>
 
       <span>or use your account</span>
 
-      <input type="email" placeholder="Email" />
-      <input type="password" placeholder="Password" />
+      <input type="email" formControlName="email" placeholder="Email" />
+      <input type="password" formControlName="password" placeholder="Password" />
 
       <a href="#">Forgot your password?</a>
 
-      <button type="button">Sign In</button>
+      <button type="submit" [disabled]="signInForm.invalid">Sign In</button>
     </form>
   </div>
 
