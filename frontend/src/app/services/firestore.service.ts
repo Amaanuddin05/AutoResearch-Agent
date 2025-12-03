@@ -5,6 +5,7 @@ import {
   doc, 
   setDoc, 
   getDocs, 
+  getDoc,
   updateDoc, 
   deleteDoc,
   DocumentData,
@@ -33,6 +34,13 @@ export class FirestoreService {
 
   private getInsightsRef(uid: string): CollectionReference<DocumentData> {
     return collection(this.getUserRef(uid), 'insights');
+  }
+
+  // --- User ---
+  async getUser(uid: string): Promise<any> {
+    const userRef = this.getUserRef(uid);
+    const snapshot = await getDoc(userRef);
+    return snapshot.exists() ? snapshot.data() : null;
   }
 
   // --- Papers CRUD ---

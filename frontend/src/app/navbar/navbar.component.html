@@ -32,10 +32,41 @@
         </svg>
       </button>
 
-      <div class="navbar__user-info" *ngIf="currentUser$ | async as user">
-        <span class="navbar__user-email">{{ user.email }}</span>
-        <button class="navbar__logout-btn" (click)="logout()">Logout</button>
-      </div>
+      <!-- Profile Avatar with Popover -->
+      @if (currentUser$ | async; as user) {
+        <div class="navbar__profile-container">
+          <button 
+            class="navbar__avatar" 
+            (click)="toggleProfilePopover()"
+            [attr.aria-label]="'User menu'"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256">
+              <path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"></path>
+            </svg>
+          </button>
+
+          <!-- Profile Popover -->
+          @if (isProfilePopoverOpen) {
+            <div class="navbar__popover">
+              <div class="navbar__popover-header">
+                <div class="navbar__popover-avatar">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256">
+                    <path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"></path>
+                  </svg>
+                </div>
+                <span class="navbar__popover-name">{{ username$ | async }}</span>
+              </div>
+              <div class="navbar__popover-divider"></div>
+              <button class="navbar__popover-logout" (click)="logout()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256">
+                  <path d="M120,216a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H56V208h56A8,8,0,0,1,120,216Zm109.66-93.66-40-40a8,8,0,0,0-11.32,11.32L204.69,120H112a8,8,0,0,0,0,16h92.69l-26.35,26.34a8,8,0,0,0,11.32,11.32l40-40A8,8,0,0,0,229.66,122.34Z"></path>
+                </svg>
+                Logout
+              </button>
+            </div>
+          }
+        </div>
+      }
 
       <!-- Mobile Menu Button -->
       <button 
@@ -68,8 +99,17 @@
 </header>
 
 <!-- Mobile Menu Overlay -->
-<div 
-  class="navbar__overlay"
-  *ngIf="isMobileMenuOpen"
-  (click)="closeMobileMenu()"
-></div>
+@if (isMobileMenuOpen) {
+  <div 
+    class="navbar__overlay"
+    (click)="closeMobileMenu()"
+  ></div>
+}
+
+<!-- Profile Popover Overlay -->
+@if (isProfilePopoverOpen) {
+  <div 
+    class="navbar__overlay"
+    (click)="closeProfilePopover()"
+  ></div>
+}

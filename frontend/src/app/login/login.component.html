@@ -1,5 +1,5 @@
 <section class="login">
-  <h2 class="login__title">Weekly Coding Challenge #1: Sign in/up Form</h2>
+  <h2 class="login__title">Research Agent - Sign in/up</h2>
 
   <div 
     class="container" 
@@ -13,14 +13,14 @@
       <h1>Create Account</h1>
 
       <div class="social-container">
-        <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
-        <a (click)="onGoogleLogin()" class="social" style="cursor: pointer;"><i class="fab fa-google-plus-g"></i></a>
-        <a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
+        <a (click)="onGoogleLogin()" class="social" style="cursor: pointer;">
+          <i class="fa-brands fa-google"></i>
+        </a>
       </div>
 
       <span>or use your email for registration</span>
 
-      <input type="text" formControlName="name" placeholder="Name" />
+      <input type="text" formControlName="username" placeholder="Username" />
       <input type="email" formControlName="email" placeholder="Email" />
       <input type="password" formControlName="password" placeholder="Password" />
 
@@ -34,9 +34,9 @@
       <h1>Sign in</h1>
 
       <div class="social-container">
-        <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
-        <a (click)="onGoogleLogin()" class="social" style="cursor: pointer;"><i class="fab fa-google-plus-g"></i></a>
-        <a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
+        <a (click)="onGoogleLogin()" class="social" style="cursor: pointer;">
+          <i class="fa-brands fa-google"></i>
+        </a>
       </div>
 
       <span>or use your account</span>
@@ -74,10 +74,7 @@
 
   <footer>
     <p>
-      Created with <i class="fa fa-heart"></i> by
-      <a target="_blank" rel="noreferrer" href="https://florin-pop.com">Florin Pop</a>
-      - Read how I created this and how you can join the challenge
-      <a target="_blank" rel="noreferrer" href="https://www.florin-pop.com/blog/2019/03/double-slider-sign-in-up-form/">here</a>.
+      Research Agent - Your AI-powered research assistant
     </p>
   </footer>
 </section>

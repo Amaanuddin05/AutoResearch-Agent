@@ -21,7 +21,7 @@ export class LoginComponent {
   isSignUpMode = signal(false);
 
   signUpForm = this.fb.group({
-    name: ['', Validators.required],
+    username: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]]
   });
@@ -42,7 +42,7 @@ export class LoginComponent {
   async onSignUp() {
   if (this.signUpForm.invalid) return;
 
-  const { email, password, name } = this.signUpForm.value;
+  const { email, password, username } = this.signUpForm.value;
 
   try {
     const cred = await this.authService.signUp(email!, password!);
@@ -50,7 +50,7 @@ export class LoginComponent {
     // Create Firestore user document
     await setDoc(doc(this.firestore, `users/${cred.user.uid}`), {
       email,
-      name,
+      username,
       createdAt: new Date().toISOString()
     });
 
@@ -82,7 +82,7 @@ export class LoginComponent {
 
     await setDoc(doc(this.firestore, `users/${cred.user.uid}`), {
       email: cred.user.email,
-      name: cred.user.displayName,
+      username: cred.user.displayName,
       createdAt: new Date().toISOString()
     }, { merge: true });
 
