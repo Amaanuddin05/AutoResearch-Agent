@@ -7,72 +7,80 @@
     aria-live="polite"
   >
 
-  <!-- Sign Up Form -->
-  <div class="form-container sign-up-container">
-    <form aria-label="Sign up form">
-      <h1>Create Account</h1>
+    <!-- Sign Up Form -->
+    <div class="form-container sign-up-container">
+      <form aria-label="Sign up form">
+        <h1>Create Account</h1>
 
-      <div class="social-container">
-        <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
-        <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
-        <a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
+        <!-- New Social Buttons -->
+        <div class="social-login">
+          <button class="google-btn">
+            <img src="https://developers.google.com/identity/images/g-logo.png" />
+            Sign up with Google
+          </button>
+
+          <button class="fb-btn">
+            <img src="https://cdn-icons-png.flaticon.com/512/124/124010.png" />
+            Sign up with Facebook
+          </button>
+        </div>
+
+        <span>or use your email for registration</span>
+
+        <input type="text" placeholder="Name" />
+        <input type="email" placeholder="Email" />
+        <input type="password" placeholder="Password" />
+
+        <button type="button">Sign Up</button>
+      </form>
+    </div>
+
+    <!-- Sign In Form -->
+    <div class="form-container sign-in-container">
+      <form>
+        <h1>Sign in</h1>
+
+        <!-- New Social Buttons -->
+        <div class="social-login">
+          <button class="google-btn">
+            <img src="https://developers.google.com/identity/images/g-logo.png" />
+            Sign in with Google
+          </button>
+
+          <button class="fb-btn">
+            <img src="https://cdn-icons-png.flaticon.com/512/124/124010.png" />
+            Sign in with Facebook
+          </button>
+        </div>
+
+        <span>or use your account</span>
+
+        <input type="email" placeholder="Email" />
+        <input type="password" placeholder="Password" />
+
+        <a href="#">Forgot your password?</a>
+
+        <button type="button">Sign In</button>
+      </form>
+    </div>
+
+    <!-- Overlay -->
+    <div class="overlay-container">
+      <div class="overlay">
+
+        <div class="overlay-panel overlay-left">
+          <h1>Welcome Back!</h1>
+          <p>To keep connected with us please login with your personal info</p>
+          <button class="ghost" type="button" (click)="switchToSignIn()">Sign In</button>
+        </div>
+
+        <div class="overlay-panel overlay-right">
+          <h1>Hello, Friend!</h1>
+          <p>Enter your personal details and start your journey with us</p>
+          <button class="ghost" type="button" (click)="switchToSignUp()">Sign Up</button>
+        </div>
+
       </div>
-
-      <span>or use your email for registration</span>
-
-      <input type="text" placeholder="Name" />
-      <input type="email" placeholder="Email" />
-      <input type="password" placeholder="Password" />
-
-      <button type="button">Sign Up</button>
-    </form>
-  </div>
-
-  <!-- Sign In Form -->
-  <div class="form-container sign-in-container">
-    <form>
-      <h1>Sign in</h1>
-
-      <div class="social-container">
-        <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
-        <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
-        <a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
-      </div>
-
-      <span>or use your account</span>
-
-      <input type="email" placeholder="Email" />
-      <input type="password" placeholder="Password" />
-
-      <a href="#">Forgot your password?</a>
-
-      <button type="button">Sign In</button>
-    </form>
-  </div>
-
-  <!-- Overlay -->
-  <div class="overlay-container">
-    <div class="overlay">
-
-      <!-- Left Side -->
-      <div class="overlay-panel overlay-left">
-        <h1>Welcome Back!</h1>
-        <p>To keep connected with us please login with your personal info</p>
-        <button class="ghost" type="button" (click)="switchToSignIn()">Sign In</button>
-      </div>
-
-      <!-- Right Side -->
-      <div class="overlay-panel overlay-right">
-        <h1>Hello, Friend!</h1>
-        <p>Enter your personal details and start your journey with us</p>
-        <button class="ghost" type="button" (click)="switchToSignUp()">Sign Up</button>
-      </div>
-
     </div>
   </div>
-  </div>
-
-  <footer>
-    
-  </footer>
 </section>
