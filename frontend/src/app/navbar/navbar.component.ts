@@ -18,6 +18,7 @@ export class NavbarComponent implements OnInit {
     { label: 'Home', path: '/home' },
     { label: 'Fetch', path: '/fetch' },
     { label: 'My Library', path: '/library' },
+    { label: 'Login', path: '/login' },
     // { label: 'History', path: '/research_history' },
     // { label: 'Analyze', path: '/analyze' },
     { label: 'Chat', path: '/chat' }

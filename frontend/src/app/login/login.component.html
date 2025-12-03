@@ -1,85 +1,98 @@
 <section class="login">
   <h2 class="login__title">Sign in | up Form</h2>
 
-  <div 
-    class="container" 
-    [class.right-panel-active]="isSignUpMode" 
+  <div
+    class="container"
+    [class.right-panel-active]="isSignUpMode"
     aria-live="polite"
   >
-
     <!-- Sign Up Form -->
     <div class="form-container sign-up-container">
       <form aria-label="Sign up form">
         <h1>Create Account</h1>
 
-        <!-- New Social Buttons -->
+        <!-- Social Buttons -->
         <div class="social-login">
-          <button class="google-btn">
-            <img src="https://developers.google.com/identity/images/g-logo.png" />
-            Sign up with Google
+          <button type="button" class="social-btn google-btn">
+            <img
+              src="https://developers.google.com/identity/images/g-logo.png"
+              alt="Google"
+            />
+            <span>Sign up with Google</span>
           </button>
 
-          <button class="fb-btn">
-            <img src="https://cdn-icons-png.flaticon.com/512/124/124010.png" />
-            Sign up with Facebook
+          <button type="button" class="social-btn fb-btn">
+            <img
+              src="https://cdn-icons-png.flaticon.com/512/124/124010.png"
+              alt="Facebook"
+            />
+            <span>Sign up with Facebook</span>
           </button>
         </div>
 
-        <span>or use your email for registration</span>
+        <span class="hint">or use your email for registration</span>
 
         <input type="text" placeholder="Name" />
         <input type="email" placeholder="Email" />
         <input type="password" placeholder="Password" />
 
-        <button type="button">Sign Up</button>
+        <button type="button" class="primary">Sign Up</button>
       </form>
     </div>
 
     <!-- Sign In Form -->
     <div class="form-container sign-in-container">
-      <form>
+      <form aria-label="Sign in form">
         <h1>Sign in</h1>
 
-        <!-- New Social Buttons -->
+        <!-- Social Buttons -->
         <div class="social-login">
-          <button class="google-btn">
-            <img src="https://developers.google.com/identity/images/g-logo.png" />
-            Sign in with Google
+          <button type="button" class="social-btn google-btn">
+            <img
+              src="https://developers.google.com/identity/images/g-logo.png"
+              alt="Google"
+            />
+            <span>Sign in with Google</span>
           </button>
 
-          <button class="fb-btn">
-            <img src="https://cdn-icons-png.flaticon.com/512/124/124010.png" />
-            Sign in with Facebook
+          <button type="button" class="social-btn fb-btn">
+            <img
+              src="https://cdn-icons-png.flaticon.com/512/124/124010.png"
+              alt="Facebook"
+            />
+            <span>Sign in with Facebook</span>
           </button>
         </div>
 
-        <span>or use your account</span>
+        <span class="hint">or use your account</span>
 
         <input type="email" placeholder="Email" />
         <input type="password" placeholder="Password" />
 
-        <a href="#">Forgot your password?</a>
+        <a href="#" class="forgot">Forgot your password?</a>
 
-        <button type="button">Sign In</button>
+        <button type="button" class="primary">Sign In</button>
       </form>
     </div>
 
     <!-- Overlay -->
     <div class="overlay-container">
       <div class="overlay">
-
         <div class="overlay-panel overlay-left">
           <h1>Welcome Back!</h1>
           <p>To keep connected with us please login with your personal info</p>
-          <button class="ghost" type="button" (click)="switchToSignIn()">Sign In</button>
+          <button class="ghost" type="button" (click)="switchToSignIn()">
+            Sign In
+          </button>
         </div>
 
         <div class="overlay-panel overlay-right">
           <h1>Hello, Friend!</h1>
           <p>Enter your personal details and start your journey with us</p>
-          <button class="ghost" type="button" (click)="switchToSignUp()">Sign Up</button>
+          <button class="ghost" type="button" (click)="switchToSignUp()">
+            Sign Up
+          </button>
         </div>
-
       </div>
     </div>
   </div>
