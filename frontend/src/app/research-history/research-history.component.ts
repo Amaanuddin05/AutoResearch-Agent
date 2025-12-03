@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PaperService, Paper } from '../services/paper.service';
+import { AuthService } from '../services/auth.service';
 
 type ViewMode = 'table' | 'grid';
 
@@ -32,7 +33,8 @@ export class ResearchHistoryComponent implements OnInit {
 
   constructor(
     private paperService: PaperService,
-    private router: Router
+    private router: Router,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
@@ -40,8 +42,14 @@ export class ResearchHistoryComponent implements OnInit {
   }
 
   /** Fetch saved papers from backend (ChromaDB) */
-  loadResearchHistory(): void {
-    this.paperService.loadPapers().subscribe({
+  async loadResearchHistory(): Promise<void> {
+    const uid = await this.authService.getUidOnce();
+    if (!uid) {
+      this.isLoading = false;
+      return;
+    }
+
+    this.paperService.loadPapers(uid).subscribe({
       next: () => {
         this.papers = this.paperService.getPapers().map((p) => ({
           ...p,

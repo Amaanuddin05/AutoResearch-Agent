@@ -6,31 +6,34 @@ import { Observable } from 'rxjs';
   providedIn: 'root'
 })
 export class FetchService {
-  private apiUrl = 'http://localhost:5000';
+
+  private nodeApiUrl = 'http://localhost:5000';
+  private mlApiUrl = 'http://localhost:8000'; 
 
   constructor(private http: HttpClient) {}
 
   fetchPapers(payload: {
-    query?: string;
-    category?: string;
-    filter?: string;
+    uid: string;
+    query?: string | null;
+    category?: string | null;
+    filter?: string | null;
     max_results?: number;
   }): Observable<any> {
-    return this.http.post(`${this.apiUrl}/fetch`, payload);
+    return this.http.post(`${this.nodeApiUrl}/fetch`, payload);
   }
 
   fetchAndSummarize(payload: {
-    query?: string;
-    category?: string;
-    filter?: string;
-    max_results?: number;
-    pdf_url?: string;
-    metadata?: any;
+    uid: string;
+    pdf_url: string;
+    metadata: any;
   }): Observable<any> {
-    return this.http.post(`${this.apiUrl}/fetch_and_summarize`, payload);
+    return this.http.post(`${this.nodeApiUrl}/fetch_and_summarize`, payload);
   }
 
-  getAnalysisStatus(jobId: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/status/${jobId}`);
+
+  getAnalysisStatus(uid: string, jobId: string): Observable<any> {
+    return this.http.get(`${this.nodeApiUrl}/status/${jobId}`, {
+      params: { uid }
+    });
   }
 }

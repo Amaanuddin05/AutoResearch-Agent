@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PaperService, Paper } from '../services/paper.service';
+import { AuthService } from '../services/auth.service';
 import { RouterModule } from '@angular/router';
 
 interface Section {
@@ -51,17 +52,24 @@ export class AnalyzeComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private paperService: PaperService
+    private paperService: PaperService,
+    private authService: AuthService
   ) {}
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
       this.hasError = true;
       return;
     }
 
-    this.paper = this.paperService.getPaperById(id) ?? null;
+    const uid = await this.authService.getUidOnce();
+    if (!uid) {
+      // Handle unauthenticated state if necessary, e.g., redirect to login
+      return;
+    }
+
+    this.paper = (await this.paperService.getPaperById(uid, id)) ?? null;
     if (!this.paper) {
       console.warn('⚠️ Paper not found:', id);
       this.hasError = true;
@@ -184,12 +192,13 @@ export class AnalyzeComponent implements OnInit {
     }
   }
 
-  toggleSave(): void {
+  async toggleSave(): Promise<void> {
     this.isSaved = !this.isSaved;
+    const uid = await this.authService.getUidOnce();
     if (this.isSaved && this.paper) {
-      this.paperService.addToLibrary(this.paper);
+      await this.paperService.addToLibrary(uid, this.paper);
     } else if (this.paper) {
-      this.paperService.removeFromLibrary(this.paper.id);
+      await this.paperService.removeFromLibrary(uid, this.paper.id);
     }
   }
 

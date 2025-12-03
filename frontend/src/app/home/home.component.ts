@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { Paper, PaperService } from '../services/paper.service';
+import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-home',
@@ -13,11 +14,21 @@ export class HomeComponent {
    savedPapers: Paper[] = [];
   isLoading = true;
 
-  constructor(private paperService: PaperService, private router: Router) {}
+  constructor(
+    private paperService: PaperService,
+    private router: Router,
+    private authService: AuthService
+  ) {}
 
-  ngOnInit() {
+  async ngOnInit() {
+    const uid = await this.authService.getUidOnce();
+    if (!uid) {
+      this.isLoading = false;
+      return;
+    }
+
     // Load saved papers from ChromaDB
-    this.paperService.loadPapers().subscribe({
+    this.paperService.loadPapers(uid).subscribe({
       next: () => {
         const allPapers = this.paperService.getPapers();
         this.savedPapers = allPapers.slice(0, 6); // Show up to 6 on home
@@ -41,10 +52,11 @@ export class HomeComponent {
     if (paper) paper.isFavorite = !paper.isFavorite;
   }
 
-  deletePaper(id: string) {
+  async deletePaper(id: string) {
   if (!confirm('Are you sure you want to delete this paper permanently?')) return;
 
-  this.paperService.deletePaperFromDB(id).subscribe({
+  const uid = await this.authService.getUidOnce();
+  this.paperService.deletePaperFromDB(uid, id).subscribe({
     next: (res) => {
       console.log('🗑️', res);
       // remove from local list immediately

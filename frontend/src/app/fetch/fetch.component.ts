@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { FetchService } from '../services/fetch.service';
 import { PaperService } from '../services/paper.service';
+import { AuthService } from '../services/auth.service';
 
 interface Paper {
   id: string | null;
@@ -27,24 +28,25 @@ interface Paper {
 })
 export class FetchComponent {
   searchMode: 'category' | 'search' = 'category';
-  
   selectedCategory: string = 'Machine Learning';
+
+  query = '';
+  filter = 'all';
+
   isLoading = false;
   hasError = false;
   showEmptyState = true;
 
-  query: string = '';
-  filter: string = 'all';
-
+  loadingPapers: number[] = Array(10).fill(null);
   isAnalyzing = false;
   progress = 0;
-  progressInterval: any;
 
-  currentPage: number = 1;
-  itemsPerPage: number = 10;
-  totalPages: number = 0;
   allPapers: Paper[] = [];
   papers: Paper[] = [];
+
+  currentPage = 1;
+  itemsPerPage = 10;
+  totalPages = 0;
 
   categories: string[] = [
     'Artificial Intelligence','Machine Learning','Deep Learning','Computer Vision',
@@ -57,21 +59,23 @@ export class FetchComponent {
     'Environmental Science','Econometrics','Sustainability Research'
   ];
 
-  loadingPapers: number[] = Array(10).fill(null);
-
   constructor(
     private fetchService: FetchService,
     private router: Router,
-    private paperService: PaperService
+    private paperService: PaperService,
+    private authService: AuthService
   ) {}
 
   truncateText(text: string, maxLength: number): string {
     if (!text) return '';
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength).trim() + '...';
+    return text.length <= maxLength ? text : text.substring(0, maxLength).trim() + '...';
   }
 
-  fetchPapers(): void {
+  // ⭐ MAIN FETCH FUNCTION (RESTORED TO ORIGINAL NODE BACKEND LOGIC)
+  async fetchPapers(): Promise<void> {
+    const uid = await this.authService.getUidOnce();
+    if (!uid) return;
+
     this.isLoading = true;
     this.hasError = false;
     this.showEmptyState = false;
@@ -80,31 +84,37 @@ export class FetchComponent {
     this.currentPage = 1;
 
     const categoryCode = this.getArxivCategoryCode(this.selectedCategory);
+    const searchQuery = this.searchMode === 'search' ? this.query.trim() : null;
 
-    const searchQuery = this.searchMode === 'search' ? this.query.trim() : '';
-
-    const payload: any = {
+    const payload = {
+      uid,
       query: searchQuery || null,
-      category: searchQuery.length > 0 ? null : categoryCode,
+      category: searchQuery ? null : categoryCode,
       filter: this.filter,
-      max_results: 100
+      max_results: 100,
     };
 
     this.fetchService.fetchPapers(payload).subscribe({
-      next: (res) => {
+      next: (res: any) => {
         this.isLoading = false;
 
-        this.allPapers = (res.papers || []).map((p: any) => ({
-          id: p.id,
-          arxiv_id: p.arxiv_id,
-          doi: p.doi,
-          title: p.title,
-          authors: p.authors,
-          summary: p.summary,
-          published: p.published,
-          updated: p.updated,
-          pdf_url: p.pdf_url,
-          citationCount: p.citationCount
+        const incoming = res.papers || [];
+        this.allPapers = incoming.map((p: any) => ({
+          id: p.id || p.arxiv_id || null,
+          arxiv_id: p.arxiv_id || null,
+          doi: p.doi || null,
+          title: p.title || 'Untitled',
+          authors:
+            Array.isArray(p.authors)
+              ? p.authors
+              : typeof p.authors === 'string'
+              ? p.authors.split(',').map((a: string) => a.trim())
+              : [],
+          summary: p.summary ?? null,
+          published: p.published ?? p.publishedDate ?? null,
+          updated: p.updated ?? null,
+          pdf_url: p.pdf_url || null,
+          citationCount: p.citationCount ?? null,
         }));
 
         this.updatePagination();
@@ -114,7 +124,7 @@ export class FetchComponent {
       error: () => {
         this.isLoading = false;
         this.hasError = true;
-      }
+      },
     });
   }
 
@@ -123,9 +133,31 @@ export class FetchComponent {
   }
 
   updateDisplayedPapers(): void {
-    const startIndex = (this.currentPage - 1) * this.itemsPerPage;
-    const endIndex = startIndex + this.itemsPerPage;
-    this.papers = this.allPapers.slice(startIndex, endIndex);
+    const start = (this.currentPage - 1) * this.itemsPerPage;
+    this.papers = this.allPapers.slice(start, start + this.itemsPerPage);
+  }
+
+  // ⭐ NEEDED FOR TEMPLATE
+  getPageNumbers(): number[] {
+    const pages: number[] = [];
+    const maxVisible = 7;
+
+    if (this.totalPages <= maxVisible) {
+      for (let i = 1; i <= this.totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (this.currentPage > 3) pages.push(-1);
+
+      const start = Math.max(2, this.currentPage - 1);
+      const end = Math.min(this.totalPages - 1, this.currentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+
+      if (this.currentPage < this.totalPages - 2) pages.push(-1);
+
+      pages.push(this.totalPages);
+    }
+
+    return pages;
   }
 
   goToPage(page: number): void {
@@ -135,140 +167,131 @@ export class FetchComponent {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  getPageNumbers(): number[] {
-    const pages: number[] = [];
-    const maxVisible = 7;
-
-    if (this.totalPages <= maxVisible) {
-      for (let i = 1; i <= this.totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      pages.push(1);
-
-      if (this.currentPage > 3) {
-        pages.push(-1);
-      }
-
-      const start = Math.max(2, this.currentPage - 1);
-      const end = Math.min(this.totalPages - 1, this.currentPage + 1);
-
-      for (let i = start; i <= end; i++) {
-        pages.push(i);
-      }
-
-      if (this.currentPage < this.totalPages - 2) {
-        pages.push(-1);
-      }
-
-      pages.push(this.totalPages);
-    }
-
-    return pages;
-  }
-
   getArxivCategoryCode(category: string): string {
     const map: Record<string, string> = {
-      'Artificial Intelligence': 'cs.AI','Machine Learning': 'cs.LG','Deep Learning': 'cs.LG',
-      'Computer Vision': 'cs.CV','Natural Language Processing': 'cs.CL','Computational Linguistics': 'cs.CL',
-      'Robotics': 'cs.RO','Data Science': 'cs.LG','Cybersecurity': 'cs.CR','Human-Computer Interaction': 'cs.HC',
-      'Quantum Computing': 'quant-ph','Theoretical Physics': 'hep-th','Astrophysics': 'astro-ph',
-      'Applied Mathematics': 'math.AP','Statistical Modeling': 'stat.ML','Biochemistry': 'q-bio.BM',
-      'Bioinformatics': 'q-bio.QM','Genomics': 'q-bio.GN','Neuroscience': 'q-bio.NC','Pharmacology': 'q-bio.TO',
-      'Molecular Biology': 'q-bio.MN','Electrical Engineering': 'eess.SP','Mechanical Engineering': 'physics.class-ph',
-      'Civil Engineering': 'physics.soc-ph','Aerospace Engineering': 'astro-ph.IM','Materials Science': 'cond-mat.mtrl-sci',
-      'Cognitive Science': 'q-bio.NC','Behavioral Science': 'q-bio.NC','Environmental Science': 'physics.ao-ph',
-      'Econometrics': 'econ.EM','Sustainability Research': 'physics.geo-ph'
+      'Artificial Intelligence': 'cs.AI',
+      'Machine Learning': 'cs.LG',
+      'Deep Learning': 'cs.LG',
+      'Computer Vision': 'cs.CV',
+      'Natural Language Processing': 'cs.CL',
+      'Computational Linguistics': 'cs.CL',
+      'Robotics': 'cs.RO',
+      'Data Science': 'cs.LG',
+      'Cybersecurity': 'cs.CR',
+      'Human-Computer Interaction': 'cs.HC',
+      'Quantum Computing': 'quant-ph',
+      'Theoretical Physics': 'hep-th',
+      'Astrophysics': 'astro-ph',
+      'Applied Mathematics': 'math.AP',
+      'Statistical Modeling': 'stat.ML',
+      'Biochemistry': 'q-bio.BM',
+      'Bioinformatics': 'q-bio.QM',
+      'Genomics': 'q-bio.GN',
+      'Neuroscience': 'q-bio.NC',
+      'Pharmacology': 'q-bio.TO',
+      'Molecular Biology': 'q-bio.MN',
+      'Electrical Engineering': 'eess.SP',
+      'Mechanical Engineering': 'physics.class-ph',
+      'Civil Engineering': 'physics.soc-ph',
+      'Aerospace Engineering': 'astro-ph.IM',
+      'Materials Science': 'cond-mat.mtrl-sci',
+      'Cognitive Science': 'q-bio.NC',
+      'Behavioral Science': 'q-bio.NC',
+      'Environmental Science': 'physics.ao-ph',
+      'Econometrics': 'econ.EM',
+      'Sustainability Research': 'physics.geo-ph',
     };
-
     return map[category] || 'cs.AI';
   }
 
-  analyzeAndSave(paper: Paper): void {
+  // ⭐ ANALYSIS WORKFLOW
+  async analyzeAndSave(paper: Paper): Promise<void> {
     if (!paper || !paper.pdf_url) {
-      alert("This paper has no PDF URL.");
+      alert('This paper has no PDF URL.');
       return;
     }
 
     this.isAnalyzing = true;
     this.progress = 0;
 
+    const uid = await this.authService.getUidOnce();
+
     const payload = {
+      uid,
       pdf_url: paper.pdf_url,
       metadata: {
         id: paper.id,
         title: paper.title,
         authors: paper.authors,
         published: paper.published,
-        pdf_url: paper.pdf_url
-      }
+        pdf_url: paper.pdf_url,
+      },
     };
 
     this.fetchService.fetchAndSummarize(payload).subscribe({
       next: (res: any) => {
         if (res.job_id) {
-          this.pollProgress(res.job_id);
+          this.pollProgress(uid, res.job_id);
         } else {
-          // Fallback for immediate response (should not happen with new backend)
           this.handleAnalysisComplete(res);
         }
       },
       error: () => {
         this.isAnalyzing = false;
-        alert("Failed to start analysis.");
-      }
+        alert('Failed to start analysis.');
+      },
     });
   }
 
-  pollProgress(jobId: string): void {
-    const pollInterval = setInterval(() => {
-      this.fetchService.getAnalysisStatus(jobId).subscribe({
+  pollProgress(uid: string, jobId: string): void {
+    const interval = setInterval(() => {
+      this.fetchService.getAnalysisStatus(uid, jobId).subscribe({
         next: (status: any) => {
           if (status.status === 'processing') {
             this.progress = status.progress || this.progress;
           } else if (status.status === 'completed') {
-            clearInterval(pollInterval);
+            clearInterval(interval);
             this.progress = 100;
             this.handleAnalysisComplete(status.result);
           } else if (status.status === 'failed') {
-            clearInterval(pollInterval);
+            clearInterval(interval);
             this.isAnalyzing = false;
             alert(`Analysis failed: ${status.error}`);
           }
         },
         error: () => {
-          clearInterval(pollInterval);
+          clearInterval(interval);
           this.isAnalyzing = false;
-          alert("Lost connection to analysis service.");
-        }
+          alert('Lost connection to analysis service.');
+        },
       });
     }, 1000);
   }
 
-  handleAnalysisComplete(data: any): void {
-    // Check for nested structure
+  async handleAnalysisComplete(data: any): Promise<void> {
     const summaryObj = data.summary || {};
     const insightsObj = data.insights || {};
     const meta = summaryObj.meta;
 
-    // Save to Library if metadata exists
     if (meta) {
-       // Merge summary and insights for the frontend
-       const mergedInsights = { ...summaryObj, ...insightsObj };
+      const mergedInsights = { ...summaryObj, ...insightsObj };
 
-       // Map to PaperService Paper interface
-       const newPaper: any = {
-         id: meta.doc_id || meta.id,
-         title: meta.title,
-         authors: Array.isArray(meta.authors) ? meta.authors : [meta.authors],
-         summary: summaryObj.abstract || summaryObj.raw_summary || '',
-         published: meta.published,
-         pdf_url: meta.pdf_url,
-         insights: mergedInsights, // Store merged data
-         dateAdded: new Date().toISOString(),
-         source: 'Arxiv'
-       };
-       this.paperService.addToLibrary(newPaper);
+      const newPaper: any = {
+        id: meta.doc_id || meta.id,
+        title: meta.title,
+        authors: Array.isArray(meta.authors)
+          ? meta.authors
+          : [meta.authors],
+        summary: summaryObj.abstract || summaryObj.raw_summary || '',
+        published: meta.published,
+        pdf_url: meta.pdf_url,
+        insights: mergedInsights,
+        dateAdded: new Date().toISOString(),
+        source: 'Arxiv',
+      };
+
+      const uid = await this.authService.getUidOnce();
+      await this.paperService.addToLibrary(uid, newPaper);
     }
 
     setTimeout(() => {
@@ -277,31 +300,20 @@ export class FetchComponent {
     }, 500);
   }
 
-
   openPDF(paperId: string): void {
-    const paper = this.allPapers.find(
-      (p) => p.id === paperId || p.title === paperId
-    );
-
+    const paper = this.allPapers.find((p) => p.id === paperId || p.title === paperId);
     if (!paper) return;
 
-    const candidates: string[] = [];
-    if (paper.pdf_url) candidates.push(paper.pdf_url);
+    const urls = [];
+    if (paper.pdf_url) urls.push(paper.pdf_url);
     if (paper.arxiv_id) {
-      const id = paper.arxiv_id.toString();
-      candidates.push(
-        `https://arxiv.org/pdf/${id}.pdf`,
-        `https://arxiv.org/abs/${id}`
-      );
+      urls.push(`https://arxiv.org/pdf/${paper.arxiv_id}.pdf`);
+      urls.push(`https://arxiv.org/abs/${paper.arxiv_id}`);
     }
 
-    const valid = candidates.find((u) => u.startsWith('http'));
-    if (valid) {
-      window.open(valid, '_blank');
-      return;
-    }
-
-    alert('No PDF available.');
+    const valid = urls.find((u) => u.startsWith('http'));
+    if (valid) window.open(valid, '_blank');
+    else alert('No PDF available.');
   }
 
   retryFetch(): void {

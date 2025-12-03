@@ -20,14 +20,15 @@ export interface ChatResponse {
   providedIn: 'root'
 })
 export class ChatService {
-  private apiUrl = 'http://localhost:5000'; // Node.js backend
+  private apiUrl = 'http://localhost:8000'; // Updated to match backend port
 
   constructor(private http: HttpClient) {}
 
-  sendMessage(message: string, contextIds: string[] = []): Observable<ChatResponse> {
-    return this.http.post<ChatResponse>(`${this.apiUrl}/chat`, {
+  sendMessage(uid: string, message: string, contextIds: string[] = []): Observable<ChatResponse> {
+    return this.http.post<ChatResponse>(`${this.apiUrl}/chat_rag`, {
+      uid,
       message,
-      context: contextIds
+      context_ids: contextIds // Backend expects context_ids, not context
     });
   }
 }

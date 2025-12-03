@@ -1,10 +1,10 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from langchain_ollama import OllamaLLM
 import fitz  # PyMuPDF
 import os, re, json, requests, uuid
 import tempfile
-from vector_store import add_paper_to_db, query_papers, store_enriched_chunks
+from vector_store import vector_store
 from summarizer_agent import extract_section_summaries, rewrite_paragraphs, extract_concepts
 from chat_agent import generate_rag_response
 
@@ -103,6 +103,7 @@ class TextData(BaseModel):
 class PDFData(BaseModel):
     path: str
     metadata: dict | None = None
+    uid: str | None = None # Optional for now, but should be required
 
 class SummaryData(BaseModel):
     summary: str
@@ -112,14 +113,17 @@ class PaperStoreRequest(BaseModel):
     summary: str
     insights: dict
     metadata: dict
+    uid: str
 
 class PaperQueryRequest(BaseModel):
     query: str
     n_results: int = 3
+    uid: str
 
 class ChatRequest(BaseModel):
     message: str
     context_ids: list[str] | None = None
+    uid: str
 
 
 # =============== ROOT ROUTE ===============
@@ -271,11 +275,11 @@ def explode_insights(insights: dict) -> list:
     return chunks
 
 
-def enrich_paper(summary: str, insights: dict, full_text: str, metadata: dict):
+def enrich_paper(uid: str, summary: str, insights: dict, full_text: str, metadata: dict):
     """
     Background task to run the full enrichment pipeline.
     """
-    print(f" Starting enrichment for: {metadata.get('title', 'Unknown')}")
+    print(f" Starting enrichment for: {metadata.get('title', 'Unknown')} (User: {uid})")
     
     all_chunks = []
     
@@ -314,7 +318,7 @@ def enrich_paper(summary: str, insights: dict, full_text: str, metadata: dict):
         
     # 5. Store all chunks
     if all_chunks:
-        store_enriched_chunks(all_chunks, metadata)
+        vector_store.store_enriched_chunks(uid, all_chunks, metadata)
         print(f" Enrichment completed for: {metadata.get('title')}")
     else:
         print("No enrichment chunks generated.")
@@ -327,9 +331,9 @@ def enrich_paper(summary: str, insights: dict, full_text: str, metadata: dict):
 
 analysis_jobs = {}
 
-def process_analysis(job_id: str, data: PDFData, background_tasks: BackgroundTasks):
+def process_analysis(job_id: str, uid: str, data: PDFData, background_tasks: BackgroundTasks):
     try:
-        print(f"🚀 Starting background analysis for job {job_id}...")
+        print(f"🚀 Starting background analysis for job {job_id} (User: {uid})...")
         analysis_jobs[job_id] = {"status": "processing", "progress": 0, "message": "Starting..."}
         
         pdf_path = data.path
@@ -388,15 +392,16 @@ def process_analysis(job_id: str, data: PDFData, background_tasks: BackgroundTas
         doc_id = summary_data["meta"].get("id") or summary_data["meta"].get("doc_id")
         
         try:
-            uid = add_paper_to_db(
+            paper_uid = vector_store.add_paper_to_db(
+                uid=uid,
                 title=summary_data["meta"]["title"],
                 summary=summary_text,
                 insights=insights,
                 metadata=summary_data["meta"],
                 doc_id=doc_id
             )
-            if uid:
-                summary_data["meta"]["doc_id"] = uid
+            if paper_uid:
+                summary_data["meta"]["doc_id"] = paper_uid
         except Exception as e:
             print("⚠️ Could not store in ChromaDB:", e)
 
@@ -406,7 +411,7 @@ def process_analysis(job_id: str, data: PDFData, background_tasks: BackgroundTas
             # Run enrichment synchronously here or spawn another task? 
             # Since we are already in a background task, we can run it here or just let it be.
             # But to show 100% only when done, let's run it here.
-            enrich_paper(summary_text, insights, full_text, summary_data["meta"])
+            enrich_paper(uid, summary_text, insights, full_text, summary_data["meta"])
 
         analysis_jobs[job_id]["progress"] = 100
         analysis_jobs[job_id]["status"] = "completed"
@@ -420,8 +425,10 @@ def process_analysis(job_id: str, data: PDFData, background_tasks: BackgroundTas
 
 @app.post("/analyze_paper")
 def analyze_paper(data: PDFData, background_tasks: BackgroundTasks):
+    if not data.uid:
+        raise HTTPException(400, "UID missing")
     job_id = str(uuid.uuid4())
-    background_tasks.add_task(process_analysis, job_id, data, background_tasks)
+    background_tasks.add_task(process_analysis, job_id, data.uid, data, background_tasks)
     return {"job_id": job_id, "status": "processing"}
 
 
@@ -438,9 +445,13 @@ def get_analysis_status(job_id: str):
 @app.post("/store_paper")
 def store_paper(data: PaperStoreRequest, background_tasks: BackgroundTasks):
     try:
+        if not data.uid:
+            raise HTTPException(400, "UID missing")
+
         doc_id = data.metadata.get("id") or data.metadata.get("doc_id")
         
-        uid = add_paper_to_db(
+        paper_uid = vector_store.add_paper_to_db(
+            uid=data.uid,
             title=data.title,
             summary=data.summary,
             insights=data.insights,
@@ -448,8 +459,8 @@ def store_paper(data: PaperStoreRequest, background_tasks: BackgroundTasks):
             doc_id=doc_id
         )
         
-        if uid:
-            data.metadata["doc_id"] = uid
+        if paper_uid:
+            data.metadata["doc_id"] = paper_uid
 
         # For /store_paper, we might not have full_text if it wasn't passed.
         # But looking at the existing code, /store_paper is usually called after /analyze_paper 
@@ -461,7 +472,7 @@ def store_paper(data: PaperStoreRequest, background_tasks: BackgroundTasks):
         pdf_url = data.metadata.get("pdf_url")
         if pdf_url and pdf_url != "N/A":
             # We need to fetch text. This might be slow, so definitely background it.
-            def fetch_and_enrich(url, summary, insights, meta):
+            def fetch_and_enrich(uid, url, summary, insights, meta):
                 print("Downloading PDF for enrichment...")
                 path = download_pdf(url)
                 if path:
@@ -470,16 +481,16 @@ def store_paper(data: PaperStoreRequest, background_tasks: BackgroundTasks):
                         text = "".join(page.get_text() for page in doc)
                         doc.close()
                         os.remove(path) # Clean up
-                        enrich_paper(summary, insights, text, meta)
+                        enrich_paper(uid, summary, insights, text, meta)
                     except Exception as e:
                         print(f"Failed to extract text for enrichment: {e}")
                 else:
                     print("Failed to download PDF for enrichment")
 
-            background_tasks.add_task(fetch_and_enrich, pdf_url, data.summary, data.insights, data.metadata)
+            background_tasks.add_task(fetch_and_enrich, data.uid, pdf_url, data.summary, data.insights, data.metadata)
         else:
             # If no PDF, we can still do concept extraction and insight explosion
-            background_tasks.add_task(enrich_paper, data.summary, data.insights, "", data.metadata)
+            background_tasks.add_task(enrich_paper, data.uid, data.summary, data.insights, "", data.metadata)
 
         return {"message": f"Stored '{data.title}' in ChromaDB successfully ✅ (Enrichment started)"}
     except Exception as e:
@@ -489,7 +500,9 @@ def store_paper(data: PaperStoreRequest, background_tasks: BackgroundTasks):
 @app.post("/search_papers")
 def search_papers(data: PaperQueryRequest):
     try:
-        results = query_papers(data.query, data.n_results)
+        if not data.uid:
+            raise HTTPException(400, "UID missing")
+        results = vector_store.query_papers(data.uid, data.query, data.n_results)
         return results
     except Exception as e:
         return {"error": str(e)}
@@ -502,7 +515,9 @@ def chat_rag(data: ChatRequest):
     Retrieves enriched chunks, compresses context, and generates answer.
     """
     try:
-        response = generate_rag_response(data.message, data.context_ids)
+        if not data.uid:
+            raise HTTPException(400, "UID missing")
+        response = generate_rag_response(data.uid, data.message, data.context_ids)
         return response
     except Exception as e:
         print(f"⚠️ Chat RAG error: {e}")
@@ -512,11 +527,11 @@ def chat_rag(data: ChatRequest):
 # =============== 5️⃣ DEBUG ENDPOINT ===============
 
 @app.get("/debug_list_papers")
-def debug_list_papers(limit: int = 10):
-    """Debug endpoint to inspect what's stored in ChromaDB."""
+def debug_list_papers(uid: str, limit: int = 10):
+    """Debug endpoint to inspect what's stored in ChromaDB for a user."""
     try:
         # Query for empty string retrieving top matches
-        results = query_papers(" ", n_results=limit)
+        results = vector_store.query_papers(uid, " ", n_results=limit)
         return results
     except Exception as e:
         return {"error": str(e), "papers": []}
@@ -610,24 +625,18 @@ def fetch_papers(category: str = "cs.AI", max_results: int = 5):
 
 # =============== 7️⃣ DELETE PAPER FROM CHROMADB ===============
 
-from vector_store import collection  # import the same collection object
-
 @app.delete("/delete_paper/{paper_id}")
-def delete_paper(paper_id: str):
+def delete_paper(paper_id: str, uid: str):
     """
     Delete a paper permanently from ChromaDB by ID.
     """
     try:
         if not paper_id:
             return {"error": "Missing paper_id"}
+        if not uid:
+             raise HTTPException(400, "UID missing")
 
-        # Check if it exists before deleting (optional safety)
-        existing = collection.get(ids=[paper_id])
-        if not existing or not existing.get("ids"):
-            return {"error": f"No paper found with ID {paper_id}"}
-
-        collection.delete(ids=[paper_id])
-        print(f"🗑️ Deleted paper {paper_id} from ChromaDB")
+        vector_store.delete_paper(uid, paper_id)
         return {"message": f"Deleted paper {paper_id} successfully ✅"}
     except Exception as e:
         print("⚠️ Error deleting paper:", e)

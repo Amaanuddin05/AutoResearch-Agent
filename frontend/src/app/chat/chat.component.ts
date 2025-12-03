@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ChatService, ChatSource } from '../services/chat.service';
 import { PaperService, Paper } from '../services/paper.service';
+import { AuthService } from '../services/auth.service';
 import { HttpClientModule } from '@angular/common/http';
 
 interface Message {
@@ -38,15 +39,19 @@ export class ChatComponent {
   constructor(
     private chatService: ChatService,
     private paperService: PaperService,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private authService: AuthService
   ) {}
 
   ngOnInit() {
     this.loadContextPapers();
   }
 
-  loadContextPapers() {
-    this.paperService.loadPapers().subscribe({
+  async loadContextPapers() {
+    const uid = await this.authService.getUidOnce();
+    if (!uid) return;
+
+    this.paperService.loadPapers(uid).subscribe({
       next: (papers) => {
         this.contextPapers = papers.map((p: Paper) => ({...p, isSelected: false}));
         this.checkQueryParams();
@@ -54,7 +59,7 @@ export class ChatComponent {
       error: (err) => {
         console.error('Failed to load context papers:', err);
         // Fallback to local storage if API fails
-        this.contextPapers = this.paperService.getAllPapers().map(p => ({...p, isSelected: false}));
+        this.contextPapers = this.paperService.getPapers().map(p => ({...p, isSelected: false}));
         this.checkQueryParams();
       }
     });
@@ -107,7 +112,7 @@ export class ChatComponent {
     }
   }
 
-  sendMessage(): void {
+  async sendMessage(): Promise<void> {
     if (!this.userMessage.trim() || this.isLoading) return;
 
     const userMsg = this.userMessage;
@@ -137,14 +142,15 @@ export class ChatComponent {
       .filter(p => p.isSelected)
       .map(p => p.id);
 
-    this.chatService.sendMessage(userMsg, selectedContextIds).subscribe({
+    const uid = await this.authService.getUidOnce();
+    this.chatService.sendMessage(uid, userMsg, selectedContextIds).subscribe({
       next: (response) => {
         // Remove thinking message
         this.messages = this.messages.filter(m => m.id !== thinkingId);
 
         // Map sources to include paper details
         const mappedSources = response.sources.map(src => {
-             const paper = this.paperService.getAllPapers().find(p => p.id === src.doc_id);
+             const paper = this.paperService.getPapers().find(p => p.id === src.doc_id);
              return {
                  ...src,
                  paperTitle: paper?.title || src.title || 'Unknown Paper',
@@ -188,7 +194,7 @@ export class ChatComponent {
 
   openAddSources(): void {
     // Refresh papers from service in case they were added recently
-    const savedPapers = this.paperService.getAllPapers();
+    const savedPapers = this.paperService.getPapers();
     
     // Create a map of current papers to preserve selection
     const currentMap = new Map(this.contextPapers.map(p => [p.id, p]));

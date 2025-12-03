@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Paper, PaperService } from '../services/paper.service';
+import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-library',
@@ -28,16 +29,20 @@ export class LibraryComponent implements OnInit {
 
   constructor(
     private paperService: PaperService,
-    private router: Router
+    private router: Router,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
     this.loadPapers();
   }
 
-  loadPapers(): void {
+  async loadPapers(): Promise<void> {
+    const uid = await this.authService.getUidOnce();
+    if (!uid) return;
+
     // First try to load from local storage
-    this.savedPapers = this.paperService.getAllPapers();
+    this.savedPapers = this.paperService.getPapers();
     this.filteredPapers = [...this.savedPapers];
     
     if (this.savedPapers.length > 0) {
@@ -45,7 +50,7 @@ export class LibraryComponent implements OnInit {
     }
 
     // Also sync with ChromaDB in background
-    this.paperService.loadPapers().subscribe({
+    this.paperService.loadPapers(uid).subscribe({
       next: (papers) => {
         // Optional: Merge or update logic if needed
         // For now, we rely on local storage for the library view
@@ -79,14 +84,15 @@ export class LibraryComponent implements OnInit {
     this.router.navigate(['/chat'], { queryParams: { paperId } });
   }
 
-  deletePaper(paperId: string): void {
+  async deletePaper(paperId: string): Promise<void> {
     if (!confirm('Are you sure you want to remove this paper from your library?')) return;
     
-    this.paperService.removeFromLibrary(paperId);
+    const uid = await this.authService.getUidOnce();
+    await this.paperService.removeFromLibrary(uid, paperId);
     this.loadPapers(); // Refresh list
     
     // Also try to delete from backend
-    this.paperService.deletePaperFromDB(paperId).subscribe();
+    this.paperService.deletePaperFromDB(uid, paperId).subscribe();
   }
 
   viewPDF(url: string | null): void {
