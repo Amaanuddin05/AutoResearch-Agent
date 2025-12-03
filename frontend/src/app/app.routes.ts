@@ -1,24 +1,43 @@
 import { Routes } from '@angular/router';
-import { HomeComponent } from './home/home.component';
-import { FetchComponent } from './fetch/fetch.component';
-import { LibraryComponent } from './library/library.component';
-import { ChatComponent } from './chat/chat.component';
-import { ResearchHistoryComponent } from './research-history/research-history.component';
-import { LoginComponent } from './login/login.component';
+import { authGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
-  { path: '', component: HomeComponent },
-  { path: 'home', component: HomeComponent },
-  { path: 'fetch', component: FetchComponent },
+  { 
+    path: 'login', 
+    loadComponent: () => import('./login/login.component').then(m => m.LoginComponent)
+  },
+  { 
+    path: 'home', 
+    loadComponent: () => import('./home/home.component').then(m => m.HomeComponent),
+    canActivate: [authGuard]
+  },
+  { 
+    path: 'fetch', 
+    loadComponent: () => import('./fetch/fetch.component').then(m => m.FetchComponent),
+    canActivate: [authGuard]
+  },
   {
     path: 'analyze/:id',
-    loadComponent: () =>
-      import('./analyze/analyze.component').then((m) => m.AnalyzeComponent),
+    loadComponent: () => import('./analyze/analyze.component').then(m => m.AnalyzeComponent),
+    canActivate: [authGuard]
   },
-  { path: 'library', component: ResearchHistoryComponent },
-  { path: 'chat', component: ChatComponent },
-  { path: 'research_history', component: ResearchHistoryComponent },
-  { path: 'login', component: LoginComponent },
-
-
+  { 
+    path: 'chat', 
+    loadComponent: () => import('./chat/chat.component').then(m => m.ChatComponent),
+    canActivate: [authGuard]
+  },
+  { 
+    path: 'library', 
+    loadComponent: () => import('./research-history/research-history.component').then(m => m.ResearchHistoryComponent),
+    canActivate: [authGuard]
+  },
+  { 
+    path: '', 
+    redirectTo: '/home', 
+    pathMatch: 'full' 
+  },
+  { 
+    path: '**', 
+    redirectTo: '/home' 
+  }
 ];

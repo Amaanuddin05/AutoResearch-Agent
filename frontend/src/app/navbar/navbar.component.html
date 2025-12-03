@@ -32,7 +32,10 @@
         </svg>
       </button>
 
-      <!-- <div class="navbar__avatar" [style.background-image]="'url(' + userAvatar + ')'"></div> -->
+      <div class="navbar__user-info" *ngIf="currentUser$ | async as user">
+        <span class="navbar__user-email">{{ user.email }}</span>
+        <button class="navbar__logout-btn" (click)="logout()">Logout</button>
+      </div>
 
       <!-- Mobile Menu Button -->
       <button 

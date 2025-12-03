@@ -115,6 +115,50 @@
   gap: 1rem;
 }
 
+.navbar__user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  border-radius: 0.75rem;
+  transition: all 0.3s ease;
+}
+
+.navbar__user-email {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navbar__logout-btn {
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+}
+
+.navbar__logout-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+}
+
+.navbar__logout-btn:active {
+  transform: translateY(0);
+}
+
+
 .navbar__link {
   font-size: 0.9375rem;
   font-weight: 600;
@@ -172,6 +216,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -179,12 +224,29 @@
 }
 
 /* Stagger animation for mobile menu items */
-.navbar__link--mobile:nth-child(1) { animation-delay: 0.05s; }
-.navbar__link--mobile:nth-child(2) { animation-delay: 0.1s; }
-.navbar__link--mobile:nth-child(3) { animation-delay: 0.15s; }
-.navbar__link--mobile:nth-child(4) { animation-delay: 0.2s; }
-.navbar__link--mobile:nth-child(5) { animation-delay: 0.25s; }
-.navbar__link--mobile:nth-child(6) { animation-delay: 0.3s; }
+.navbar__link--mobile:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.navbar__link--mobile:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.navbar__link--mobile:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.navbar__link--mobile:nth-child(4) {
+  animation-delay: 0.2s;
+}
+
+.navbar__link--mobile:nth-child(5) {
+  animation-delay: 0.25s;
+}
+
+.navbar__link--mobile:nth-child(6) {
+  animation-delay: 0.3s;
+}
 
 .navbar__theme-toggle {
   display: flex;
@@ -340,6 +402,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -427,6 +490,14 @@
   .navbar__menu-icon {
     background: #818cf8;
   }
+
+  .navbar__user-info {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  }
+
+  .navbar__user-email {
+    color: #cbd5e1;
+  }
 }
 
 :host-context(.dark-mode) {
@@ -494,6 +565,14 @@
 
   .navbar__link--mobile {
     padding: 1rem 1.5rem;
+  }
+
+  .navbar__user-info {
+    padding: 0.375rem 0.75rem;
+  }
+
+  .navbar__user-email {
+    display: none;
   }
 }
 

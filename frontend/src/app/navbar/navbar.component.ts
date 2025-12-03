@@ -1,29 +1,32 @@
-import { DOCUMENT, NgFor, NgIf } from '@angular/common';
-import { Component, Inject, OnInit, Renderer2 } from '@angular/core';
+import { DOCUMENT, NgFor, NgIf, AsyncPipe } from '@angular/common';
+import { Component, Inject, OnInit, Renderer2, inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { AuthService } from '../services/auth.service';
+import { Observable } from 'rxjs';
+import { User } from '@angular/fire/auth';
 
 @Component({
   selector: 'app-navbar',
-  imports: [NgFor, NgIf],
+  imports: [NgFor, NgIf, AsyncPipe],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.scss'
 })
 export class NavbarComponent implements OnInit {
   private readonly themeClass = 'dark-mode';
   private readonly isBrowser = typeof window !== 'undefined';
+  private authService = inject(AuthService);
+  private router = inject(Router);
 
   isDarkMode = false;
   isMobileMenuOpen = false;
+  currentUser$: Observable<User | null> = this.authService.currentUser$;
   
   navLinks = [
     { label: 'Home', path: '/home' },
     { label: 'Fetch', path: '/fetch' },
     { label: 'My Library', path: '/library' },
-    // { label: 'History', path: '/research_history' },
-    // { label: 'Analyze', path: '/analyze' },
     { label: 'Chat', path: '/chat' }
   ];
-
-  userAvatar = 'https://lh3.googleusercontent.com/aida-public/AB6AXuCzG7BAa8uOgl55IHGxRZ1Xds1iSjzcjWnNpu9WntW-QbZIIV8B1gjdC31CI0F0AMR7jYv6qlroSZ-D9ZFM3ZLea1gjHAIM3tkVu4kmmM7Cgx_rPlzMnZ07Ir4TYMDDNuT3IDyr5fUiHYAFrj2jFiaajClaNESRu-qnT9Ky6vGvn3f24ZfAGhx_lYSXq6S4veegxjxjC30sEYqSSoaOmm-67pJKIn6PQzMHAwMLe2YcpU7IhIQmDsZVoKgB_mx4XQxgteIyWkdi4II';
 
   constructor(
     private readonly renderer: Renderer2,
@@ -44,6 +47,12 @@ export class NavbarComponent implements OnInit {
 
   closeMobileMenu(): void {
     this.isMobileMenuOpen = false;
+  }
+
+  logout(): void {
+    this.authService.logout().then(() => {
+      this.router.navigate(['/login']);
+    });
   }
 
   private applyInitialTheme(): void {

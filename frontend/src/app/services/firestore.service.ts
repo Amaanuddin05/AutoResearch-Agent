@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Firestore, collection, doc, setDoc, deleteDoc, collectionData } from '@angular/fire/firestore';
 import { Observable, from } from 'rxjs';
-import { Paper } from './paper.service';
+import { Paper } from '../models/paper.model';
 
 @Injectable({
   providedIn: 'root',
@@ -11,7 +11,6 @@ export class FirestoreService {
 
   savePaper(userId: string, paper: Paper): Observable<void> {
     const paperRef = doc(this.firestore, `users/${userId}/papers/${paper.id}`);
-    // Ensure undefined values are not passed to Firestore
     const cleanPaper = JSON.parse(JSON.stringify(paper));
     return from(setDoc(paperRef, { ...cleanPaper, dateAdded: new Date().toISOString() }));
   }
