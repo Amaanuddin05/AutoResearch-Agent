@@ -117,16 +117,14 @@ export const fetchAndSummarize = async (req, res) => {
 
     let paper;
 
-    // 1. Check if specific paper details are provided (Direct Analysis)
+
     if (req.body.pdf_url && req.body.metadata) {
       paper = {
         ...req.body.metadata,
         pdf_url: req.body.pdf_url
       };
-      // Ensure title is present
       if (!paper.title) paper.title = "Untitled Paper";
     }
-    // 2. Otherwise, perform search (Fallback/Default)
     else {
       let url;
       if (query && query.trim().length > 0) {
@@ -163,12 +161,18 @@ export const fetchAndSummarize = async (req, res) => {
     const pdfPath = path.join(UPLOAD_DIR, `${safeTitle}.pdf`);
     fs.writeFileSync(pdfPath, pdfResponse.data);
 
+    console.log("Forwarding to FastAPI:", {
+      uid: req.body.uid,
+      pdfPath,
+      title: paper.title
+    });
+
     const summaryResponse = await axios.post("http://127.0.0.1:8000/analyze_paper", {
       path: pdfPath,
       metadata: paper,
+      uid: req.body.uid 
     });
 
-    // Return job ID immediately
     res.json({
       message: "Analysis started",
       job_id: summaryResponse.data.job_id,
@@ -176,6 +180,10 @@ export const fetchAndSummarize = async (req, res) => {
     });
 
   } catch (err) {
+    console.error("fetchAndSummarize Error:", err.message);
+    if (err.response) {
+      console.error("FastAPI Error:", err.response.data);
+    }
     res.status(500).json({ error: "Failed to start analysis" });
   }
 };
@@ -187,7 +195,6 @@ export const getAnalysisStatus = async (req, res) => {
     const statusData = response.data;
 
     if (statusData.status === "completed") {
-      // Save results to file as before
       const result = statusData.result;
       const safeTitle = result.summary.meta.title.replace(/[^\w\s]/g, "_");
       const summaryFile = path.join(SUMMARY_DIR, `${safeTitle}_summary.json`);
