@@ -24,6 +24,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -77,6 +78,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -349,6 +351,14 @@
   font-weight: 700;
   color: #0f172a;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-emoji {
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
 .section-card__icon {
@@ -368,7 +378,7 @@
 }
 
 .section-card--open .section-card__content {
-  max-height: 1000px;
+  max-height: 3000px;
 }
 
 .section-card__body {
@@ -381,6 +391,34 @@
   line-height: 1.7;
   color: #475569;
   margin: 1rem 0 0;
+  white-space: pre-line;
+}
+
+.section-card__list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+
+.section-card__list-item {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: #475569;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  background: #f8fafc;
+  border-radius: 0.5rem;
+  border-left: 3px solid #4f46e5;
+  transition: all 0.2s ease;
+}
+
+.section-card__list-item:hover {
+  background: #f1f5f9;
+  transform: translateX(4px);
+}
+
+.section-card__list-item:last-child {
+  margin-bottom: 0;
 }
 
 /* Action Bar */
@@ -450,8 +488,8 @@
 }
 
 @keyframes spin {
-  100% { 
-    transform: rotate(360deg); 
+  100% {
+    transform: rotate(360deg);
   }
 }
 
@@ -501,6 +539,7 @@
   transform: none;
   box-shadow: none;
 }
+
 @mixin analyze-dark-theme {
   .breadcrumbs__item {
     color: #94a3b8;
@@ -611,6 +650,16 @@
 
   .section-card__text {
     color: #cbd5e1;
+  }
+
+  .section-card__list-item {
+    background: #0f172a;
+    color: #cbd5e1;
+    border-left-color: #818cf8;
+  }
+
+  .section-card__list-item:hover {
+    background: #1e293b;
   }
 
   .analyze__action-bar {

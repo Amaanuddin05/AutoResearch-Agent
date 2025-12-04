@@ -524,6 +524,31 @@ def chat_rag(data: ChatRequest):
         return {"error": str(e)}
 
 
+@app.get("/get_enriched_paper/{paper_id}")
+def get_enriched_paper(paper_id: str, uid: str):
+    """
+    Fetch a paper and all its enriched chunks.
+    Returns structured data organized by chunk type.
+    """
+    try:
+        if not uid:
+            raise HTTPException(400, "UID missing")
+        if not paper_id:
+            raise HTTPException(400, "paper_id missing")
+        
+        result = vector_store.get_enriched_paper(uid, paper_id)
+        
+        if not result:
+            raise HTTPException(404, f"Paper {paper_id} not found")
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"⚠️ Error fetching enriched paper: {e}")
+        return {"error": str(e)}
+
+
 # =============== 5️⃣ DEBUG ENDPOINT ===============
 
 @app.get("/debug_list_papers")

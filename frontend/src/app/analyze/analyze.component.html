@@ -143,14 +143,25 @@
             class="section-card__header" 
             (click)="toggleSection(section.id)"
           >
-            <h3 class="section-card__title">{{ section.title }}</h3>
+            <h3 class="section-card__title">
+              <span class="section-emoji">{{ section.emoji }}</span>
+              {{ section.title }}
+            </h3>
             <span class="material-symbols-outlined section-card__icon">
               expand_more
             </span>
           </button>
           <div class="section-card__content">
             <div class="section-card__body">
-              <p class="section-card__text">{{ section.content }}</p>
+              <!-- Display content if available -->
+              <p *ngIf="section.content" class="section-card__text">{{ section.content }}</p>
+              
+              <!-- Display items list if available -->
+              <ul *ngIf="section.items && section.items.length > 0" class="section-card__list">
+                <li *ngFor="let item of section.items" class="section-card__list-item">
+                  {{ item }}
+                </li>
+              </ul>
             </div>
           </div>
         </div>

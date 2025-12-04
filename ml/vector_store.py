@@ -218,6 +218,97 @@ class VectorStore:
             
         return chunks
 
+    def get_enriched_paper(self, uid: str, paper_id: str):
+        """
+        Fetch a paper and all its enriched chunks.
+        Returns structured data organized by chunk type.
+        """
+        collection = self.get_collection(uid)
+        
+        # 1. Fetch the main paper entry
+        paper_results = collection.get(
+            where={"$and": [
+                {"entry_type": "paper"},
+                {"doc_id": paper_id}
+            ]},
+            limit=1
+        )
+        
+        if not paper_results or not paper_results.get("ids"):
+            # Try fetching by ID directly
+            try:
+                paper_results = collection.get(ids=[paper_id])
+            except:
+                return None
+        
+        if not paper_results or not paper_results.get("ids"):
+            return None
+            
+        # Parse paper data
+        paper_meta = paper_results["metadatas"][0] if paper_results.get("metadatas") else {}
+        paper_doc = paper_results["documents"][0] if paper_results.get("documents") else ""
+        
+        insights_data = paper_meta.get("insights", "{}")
+        if isinstance(insights_data, str):
+            try:
+                insights_data = json.loads(insights_data)
+            except:
+                insights_data = {}
+        
+        paper_data = {
+            "id": paper_id,
+            "title": paper_meta.get("title", "Untitled"),
+            "authors": paper_meta.get("authors", "Unknown"),
+            "published": paper_meta.get("published", "N/A"),
+            "pdf_url": paper_meta.get("pdf_url", "N/A"),
+            "summary": paper_doc,
+            "insights": insights_data,
+            "metadata": paper_meta
+        }
+        
+        # 2. Fetch all enriched chunks for this paper
+        chunk_results = collection.get(
+            where={"$and": [
+                {"entry_type": "chunk"},
+                {"doc_id": paper_id}
+            ]},
+            limit=1000  # Reasonable limit for chunks
+        )
+        
+        # Organize chunks by type
+        chunks_by_type = {
+            "paragraph_rewrite": [],
+            "finding": [],
+            "method": [],
+            "dataset": [],
+            "implication": [],
+            "concept": [],
+            "section_summary": [],
+            "limitation": [],
+            "citation": []
+        }
+        
+        if chunk_results and chunk_results.get("ids"):
+            for i, chunk_id in enumerate(chunk_results["ids"]):
+                chunk_meta = chunk_results["metadatas"][i] if i < len(chunk_results.get("metadatas", [])) else {}
+                chunk_doc = chunk_results["documents"][i] if i < len(chunk_results.get("documents", [])) else ""
+                
+                chunk_type = chunk_meta.get("chunk_type", "unknown")
+                
+                chunk_data = {
+                    "id": chunk_id,
+                    "content": chunk_doc,
+                    "metadata": chunk_meta
+                }
+                
+                if chunk_type in chunks_by_type:
+                    chunks_by_type[chunk_type].append(chunk_data)
+        
+        return {
+            "paper": paper_data,
+            "enriched_chunks": chunks_by_type
+        }
+
     def delete_paper(self, uid: str, paper_id: str):
         """Delete a paper for a user."""
         collection = self.get_collection(uid)
