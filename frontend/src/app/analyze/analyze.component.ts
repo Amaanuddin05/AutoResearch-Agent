@@ -30,10 +30,12 @@ interface RelatedPaper {
   summary: string | null;
 }
 
+import { FormatTextPipe } from './format-text.pipe';
+
 @Component({
   selector: 'app-analyze',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormatTextPipe],
   templateUrl: './analyze.component.html',
   styleUrls: ['./analyze.component.scss'],
 })
@@ -226,17 +228,7 @@ export class AnalyzeComponent implements OnInit {
       }
     }
 
-    // Rewritten Abstract / Paragraphs
-    if (chunks.paragraph_rewrite?.length > 0) {
-      this.sections.push({
-        id: 'rewritten-paragraphs',
-        title: 'Rewritten Abstract / Paragraphs',
-        emoji: '✍️',
-        content: '',
-        items: chunks.paragraph_rewrite.map(c => c.content),
-        isOpen: false
-      });
-    }
+
 
     // Key Findings
     if (chunks.finding?.length > 0) {
@@ -294,6 +286,18 @@ export class AnalyzeComponent implements OnInit {
         emoji: '📌',
         content: '',
         items: chunks.implication.map(c => c.content),
+        isOpen: false
+      });
+    }
+
+    // Rewritten Abstract / Paragraphs
+    if (chunks.paragraph_rewrite?.length > 0) {
+      this.sections.push({
+        id: 'rewritten-paragraphs',
+        title: 'Rewritten Abstract / Paragraphs',
+        emoji: '✍️',
+        content: '',
+        items: chunks.paragraph_rewrite.map(c => c.content),
         isOpen: false
       });
     }

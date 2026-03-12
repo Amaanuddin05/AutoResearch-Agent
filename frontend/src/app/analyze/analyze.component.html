@@ -154,12 +154,11 @@
           <div class="section-card__content">
             <div class="section-card__body">
               <!-- Display content if available -->
-              <p *ngIf="section.content" class="section-card__text">{{ section.content }}</p>
+              <p *ngIf="section.content" class="section-card__text" [innerHTML]="section.content | formatText"></p>
               
               <!-- Display items list if available -->
               <ul *ngIf="section.items && section.items.length > 0" class="section-card__list">
-                <li *ngFor="let item of section.items" class="section-card__list-item">
-                  {{ item }}
+                <li *ngFor="let item of section.items" class="section-card__list-item" [innerHTML]="item | formatText">
                 </li>
               </ul>
             </div>
