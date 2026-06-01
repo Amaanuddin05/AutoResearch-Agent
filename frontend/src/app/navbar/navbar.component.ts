@@ -32,18 +32,19 @@ export class NavbarComponent implements OnInit {
       );
     })
   );
-  
+
   navLinks = [
     { label: 'Home', path: '/home' },
     { label: 'Fetch', path: '/fetch' },
     { label: 'My Library', path: '/library' },
-    { label: 'Chat', path: '/chat' }
+    { label: 'Chat', path: '/chat' },
+    { label: 'Automation', path: '/automation' }
   ];
 
   constructor(
     private readonly renderer: Renderer2,
     @Inject(DOCUMENT) private readonly document: Document
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.applyInitialTheme();
