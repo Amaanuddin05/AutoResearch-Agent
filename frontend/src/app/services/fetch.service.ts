@@ -36,4 +36,11 @@ export class FetchService {
       params: { uid }
     });
   }
+
+  uploadPdf(file: File, uid: string): Observable<any> {
+    const formData = new FormData();
+    formData.append('pdf', file);
+    formData.append('uid', uid);
+    return this.http.post(`${this.nodeApiUrl}/upload`, formData);
+  }
 }

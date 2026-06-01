@@ -542,12 +542,28 @@ def process_analysis(job_id: str, uid: str, data: PDFData, background_tasks: Bac
     except Exception as e:
         print(f"❌ Job {job_id} failed: {e}")
         analysis_jobs[job_id] = {"status": "failed", "error": str(e)}
+    finally:
+        # Delete temp file if it was copied
+        if data.path and data.path.startswith(tempfile.gettempdir()):
+            try:
+                os.unlink(data.path)
+                print(f"🧹 Cleaned up temp upload PDF: {data.path}")
+            except Exception as e:
+                print("Failed to delete temp file:", e)
 
 
 @app.post("/analyze_paper")
 def analyze_paper(data: PDFData, background_tasks: BackgroundTasks):
     if not data.uid:
         raise HTTPException(400, "UID missing")
+        
+    # Copy the file to a safe temp file so that the original file can be deleted safely by Express
+    if data.path and os.path.exists(data.path) and not data.path.startswith("http"):
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        with open(data.path, "rb") as src, open(temp_file.name, "wb") as dst:
+            dst.write(src.read())
+        data.path = temp_file.name
+
     job_id = str(uuid.uuid4())
     background_tasks.add_task(process_analysis, job_id, data.uid, data, background_tasks)
     return {"job_id": job_id, "status": "processing"}

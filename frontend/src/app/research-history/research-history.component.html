@@ -229,3 +229,73 @@
     </div>
   </div>
 </div>
+
+<!-- Upload PDF Modal -->
+<div class="upload-overlay" *ngIf="showUploadModal" (click)="closeUploadModal()">
+  <div class="upload-box" (click)="$event.stopPropagation()">
+    <button class="upload-box__close-btn" (click)="closeUploadModal()" [disabled]="isUploading">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+    
+    <h2 class="upload-box__title">Upload Research Paper</h2>
+    <p class="upload-box__subtitle">Analyze any local PDF and add it to your library.</p>
+
+    <!-- Dropzone Area -->
+    <div 
+      class="upload-box__dropzone"
+      [class.upload-box__dropzone--active]="isDragActive"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+      (click)="fileInput.click()"
+      *ngIf="!selectedFile && !isUploading"
+    >
+      <input 
+        type="file" 
+        #fileInput 
+        style="display: none" 
+        accept=".pdf" 
+        (change)="onFileSelected($event)"
+      />
+      <span class="material-symbols-outlined upload-box__dropzone-icon">cloud_upload</span>
+      <p class="upload-box__dropzone-text">Drag & drop your PDF file here, or <span class="highlight">browse</span></p>
+      <p class="upload-box__dropzone-sub">Only PDF files are supported</p>
+    </div>
+
+    <!-- Selected File Details -->
+    <div class="upload-box__file-details" *ngIf="selectedFile && !isUploading">
+      <div class="file-info">
+        <span class="material-symbols-outlined file-info__icon">picture_as_pdf</span>
+        <div class="file-info__meta">
+          <p class="file-info__name">{{ selectedFile.name }}</p>
+          <p class="file-info__size">{{ formatFileSize(selectedFile.size) }}</p>
+        </div>
+      </div>
+      <button class="upload-box__remove-file" (click)="removeSelectedFile()">
+        <span class="material-symbols-outlined">delete</span>
+      </button>
+    </div>
+
+    <!-- Actions -->
+    <div class="upload-box__actions" *ngIf="selectedFile && !isUploading">
+      <button class="upload-box__btn upload-box__btn--secondary" (click)="closeUploadModal()">Cancel</button>
+      <button class="upload-box__btn upload-box__btn--primary" (click)="triggerUpload()">
+        <span class="material-symbols-outlined">bolt</span>
+        <span>Start Analysis</span>
+      </button>
+    </div>
+
+    <!-- Uploading / Analyzing Loader -->
+    <div class="upload-box__loader" *ngIf="isUploading">
+      <div class="loader-spinner">
+        <span class="material-symbols-outlined">autorenew</span>
+      </div>
+      <div class="loader-title">Analyzing Paper</div>
+      <div class="loader-step">{{ uploadProgressMessage }}</div>
+      <div class="progress-container">
+        <div class="progress-bar" [style.width.%]="uploadProgress"></div>
+      </div>
+      <div class="progress-value">{{ uploadProgress }}%</div>
+    </div>
+  </div>
+</div>

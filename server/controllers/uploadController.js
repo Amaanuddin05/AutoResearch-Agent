@@ -11,15 +11,21 @@ export const uploadPdf = async (req, res) => {
     const filePath = path.resolve(req.file.path);
     console.log(`Received file: ${filePath}`);
 
+    const { uid } = req.body;
+    if (!uid) {
+      return res.status(400).json({ error: "UID missing in upload request" });
+    }
+
     const response = await axios.post("http://127.0.0.1:8000/analyze_paper", {
       path: filePath,
+      uid: uid,
       metadata: {
         title: req.file.originalname.replace(".pdf", ""),
         source: "upload"
       }
     });
 
-    console.log("Summary generated");
+    console.log("Summary started");
     res.json(response.data);
 
     fs.unlink(filePath, (err) => {
