@@ -1,0 +1,240 @@
+<div class="automation">
+    <div class="automation__wrapper">
+
+        <!-- Header -->
+        <div class="automation__header">
+            <div class="automation__header-content">
+                <h1 class="automation__title">Research Automation</h1>
+                <p class="automation__subtitle">
+                    Set up automated research digests delivered straight to your inbox.
+                </p>
+            </div>
+        </div>
+
+        <!-- Main Layout -->
+        <div class="automation__layout">
+
+            <!-- Left: Config Panel -->
+            <div class="automation__config-panel">
+
+                <!-- Section: Email -->
+                <div class="automation__section">
+                    <div class="automation__section-header">
+                        <span class="material-symbols-outlined">mail</span>
+                        <h2 class="automation__section-title">Delivery Email</h2>
+                    </div>
+                    <div class="automation__search-bar">
+                        <span class="material-symbols-outlined automation__search-icon">alternate_email</span>
+                        <input type="email" class="automation__search-input" placeholder="Enter your email address"
+                            [(ngModel)]="emailAddress" />
+                        <button *ngIf="emailAddress.trim()" class="automation__clear-button"
+                            (click)="emailAddress = ''">
+                            <span class="material-symbols-outlined">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Section: Schedule -->
+                <div class="automation__section">
+                    <div class="automation__section-header">
+                        <span class="material-symbols-outlined">schedule</span>
+                        <h2 class="automation__section-title">Schedule</h2>
+                    </div>
+                    <div class="automation__filters">
+                        <div class="automation__filter-group">
+                            <label class="automation__filter-label">Frequency</label>
+                            <select class="automation__filter-select" [(ngModel)]="frequency">
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="biweekly">Bi-Weekly</option>
+                            </select>
+                        </div>
+                        <div class="automation__filter-group"
+                            *ngIf="frequency === 'weekly' || frequency === 'biweekly'">
+                            <label class="automation__filter-label">Day of Week</label>
+                            <select class="automation__filter-select" [(ngModel)]="dayOfWeek">
+                                <option value="monday">Monday</option>
+                                <option value="tuesday">Tuesday</option>
+                                <option value="wednesday">Wednesday</option>
+                                <option value="thursday">Thursday</option>
+                                <option value="friday">Friday</option>
+                                <option value="saturday">Saturday</option>
+                                <option value="sunday">Sunday</option>
+                            </select>
+                        </div>
+                        <div class="automation__filter-group">
+                            <label class="automation__filter-label">Time (24h)</label>
+                            <select class="automation__filter-select" [(ngModel)]="deliveryTime">
+                                <option value="06:00">06:00 AM</option>
+                                <option value="08:00">08:00 AM</option>
+                                <option value="09:00">09:00 AM</option>
+                                <option value="12:00">12:00 PM</option>
+                                <option value="18:00">06:00 PM</option>
+                                <option value="20:00">08:00 PM</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Topics -->
+                <div class="automation__section">
+                    <div class="automation__section-header">
+                        <span class="material-symbols-outlined">category</span>
+                        <h2 class="automation__section-title">Research Topics</h2>
+                    </div>
+                    <p class="automation__section-hint">Select topics you want to receive paper digests for.</p>
+
+                    <div class="automation__topics-grid">
+                        <button *ngFor="let topic of availableTopics" class="automation__topic-chip"
+                            [class.automation__topic-chip--active]="isTopicSelected(topic)"
+                            (click)="toggleTopic(topic)">
+                            <span class="material-symbols-outlined">{{ isTopicSelected(topic) ? 'check' : 'add'
+                                }}</span>
+                            <span>{{ topic }}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Section: Digest Options -->
+                <div class="automation__section">
+                    <div class="automation__section-header">
+                        <span class="material-symbols-outlined">tune</span>
+                        <h2 class="automation__section-title">Digest Options</h2>
+                    </div>
+                    <div class="automation__filters">
+                        <div class="automation__filter-group">
+                            <label class="automation__filter-label">Papers per Digest</label>
+                            <select class="automation__filter-select" [(ngModel)]="papersPerDigest">
+                                <option value="3">3 papers</option>
+                                <option value="5">5 papers</option>
+                                <option value="10">10 papers</option>
+                                <option value="15">15 papers</option>
+                            </select>
+                        </div>
+                        <div class="automation__filter-group">
+                            <label class="automation__filter-label">Include</label>
+                            <select class="automation__filter-select" [(ngModel)]="digestContent">
+                                <option value="summary">Summary only</option>
+                                <option value="full">Summary + Insights</option>
+                                <option value="brief">Brief titles only</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <div class="automation__action-row">
+                    <button class="automation__action-button" (click)="saveAutomation()" [disabled]="!canSave()">
+                        <span class="material-symbols-outlined">auto_awesome</span>
+                        <span>{{ isEnabled ? 'Update Automation' : 'Enable Automation' }}</span>
+                    </button>
+                    <button *ngIf="isEnabled" class="automation__action-button automation__action-button--danger"
+                        (click)="disableAutomation()">
+                        <span class="material-symbols-outlined">stop_circle</span>
+                        <span>Disable</span>
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- Right: Status + History Panel -->
+            <div class="automation__status-panel">
+
+                <!-- Active Status Card -->
+                <div class="status-card" [class.status-card--active]="isEnabled"
+                    [class.status-card--inactive]="!isEnabled">
+                    <div class="status-card__header">
+                        <span class="material-symbols-outlined">{{ isEnabled ? 'notifications_active' :
+                            'notifications_off' }}</span>
+                        <span class="status-card__badge" [class.status-card__badge--active]="isEnabled">
+                            {{ isEnabled ? 'Active' : 'Inactive' }}
+                        </span>
+                    </div>
+                    <p class="status-card__label">Automation Status</p>
+                    <div class="status-card__details" *ngIf="isEnabled">
+                        <div class="status-card__detail-row">
+                            <span class="material-symbols-outlined">mail</span>
+                            <span>{{ emailAddress || '—' }}</span>
+                        </div>
+                        <div class="status-card__detail-row">
+                            <span class="material-symbols-outlined">schedule</span>
+                            <span>{{ getScheduleLabel() }}</span>
+                        </div>
+                        <div class="status-card__detail-row">
+                            <span class="material-symbols-outlined">category</span>
+                            <span>{{ selectedTopics.length }} topic{{ selectedTopics.length !== 1 ? 's' : '' }}</span>
+                        </div>
+                        <div class="status-card__detail-row" *ngIf="nextRunAt">
+                            <span class="material-symbols-outlined">upcoming</span>
+                            <span>Next run: {{ nextRunAt }}</span>
+                        </div>
+                    </div>
+                    <p class="status-card__empty" *ngIf="!isEnabled">
+                        Configure and enable automation to start receiving digests.
+                    </p>
+                </div>
+
+                <!-- Digest History -->
+                <div class="automation__section automation__section--history">
+                    <div class="automation__section-header">
+                        <span class="material-symbols-outlined">history</span>
+                        <h2 class="automation__section-title">Recent Digests</h2>
+                    </div>
+
+                    <!-- Loading -->
+                    <div *ngIf="isLoadingHistory" class="automation__history-list">
+                        <div *ngFor="let i of [1,2,3]" class="history-item history-item--loading">
+                            <div class="skeleton skeleton--line"></div>
+                            <div class="skeleton skeleton--line skeleton--line-short"></div>
+                        </div>
+                    </div>
+
+                    <!-- History List -->
+                    <div *ngIf="!isLoadingHistory && digestHistory.length > 0" class="automation__history-list">
+                        <div *ngFor="let item of digestHistory" class="history-item">
+                            <div class="history-item__left">
+                                <span class="material-symbols-outlined history-item__icon"
+                                    [class.history-item__icon--success]="item.status === 'sent'"
+                                    [class.history-item__icon--failed]="item.status === 'failed'">
+                                    {{ item.status === 'sent' ? 'mark_email_read' : 'error' }}
+                                </span>
+                                <div class="history-item__info">
+                                    <p class="history-item__title">{{ item.papersCount }} papers · {{
+                                        item.topics.join(', ') }}</p>
+                                    <p class="history-item__date">{{ item.sentAt }}</p>
+                                </div>
+                            </div>
+                            <span class="history-item__status"
+                                [class.history-item__status--sent]="item.status === 'sent'"
+                                [class.history-item__status--failed]="item.status === 'failed'">
+                                {{ item.status === 'sent' ? 'Sent' : 'Failed' }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Empty History -->
+                    <div *ngIf="!isLoadingHistory && digestHistory.length === 0" class="fetch__empty-state">
+                        <div class="empty-state">
+                            <div class="empty-state__icon">
+                                <span class="material-symbols-outlined">inbox</span>
+                            </div>
+                            <div class="empty-state__content">
+                                <p class="empty-state__title">No digests sent yet</p>
+                                <p class="empty-state__description">Your digest history will appear here once automation
+                                    is active.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Save Success Toast -->
+        <div class="automation__toast" [class.automation__toast--visible]="showToast">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>{{ toastMessage }}</span>
+        </div>
+
+    </div>
+</div>
