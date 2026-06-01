@@ -56,6 +56,21 @@ def summarize_pdf(pdf_path, metadata=None):
     chunks = splitter.split_documents(docs)
     combined_text = "\n".join([c.page_content for c in chunks])
 
+    # ── DEBUG: show input size ──────────────────────────────────────────────
+    print(f"\n{'='*60}")
+    print(f"[DEBUG] PDF path: {pdf_path}")
+    print(f"[DEBUG] Total chunks from splitter: {len(chunks)}")
+    print(f"[DEBUG] Combined text length (chars): {len(combined_text)}")
+    print(f"[DEBUG] First 500 chars of combined_text:")
+    print(combined_text[:500])
+    print(f"{'='*60}\n")
+
+    # Truncate to ~6000 chars to stay within LLaMA 3:8b context window
+    MAX_CONTEXT_CHARS = 6000
+    if len(combined_text) > MAX_CONTEXT_CHARS:
+        print(f"[DEBUG] ⚠️ Truncating combined_text from {len(combined_text)} to {MAX_CONTEXT_CHARS} chars")
+        combined_text = combined_text[:MAX_CONTEXT_CHARS]
+
     prompt_template = """
     You are an expert AI research summarizer.
     Analyze the following research paper and return ONLY valid JSON in this exact format:
@@ -69,7 +84,7 @@ def summarize_pdf(pdf_path, metadata=None):
       "key_points": ["...", "..."]
     }}
 
-    Ensure all fields exist, even if empty. Do NOT include markdown or explanations.
+    Ensure all fields exist, even if empty. Do NOT include markdown, code fences, or explanations. Output raw JSON only.
 
     Paper text:
     {context}
@@ -81,15 +96,43 @@ def summarize_pdf(pdf_path, metadata=None):
     print("⚙️ Generating structured summary...")
     raw_output = summarizer_chain.invoke({"context": combined_text})
 
-    match = re.search(r"\{.*\}", raw_output, re.DOTALL)
-    if match:
-        try:
-            summary_json = json.loads(match.group(0))
-        except json.JSONDecodeError:
-            print("Could not parse JSON perfectly; returning raw text.")
-            summary_json = {"raw_summary": raw_output}
-    else:
+    # ── DEBUG: show raw LLM response ───────────────────────────────────────
+    print(f"\n{'='*60}")
+    print("[DEBUG] RAW LLM OUTPUT:")
+    print(raw_output)
+    print(f"{'='*60}\n")
+
+    # Strip markdown code fences if present (e.g. ```json ... ``` )
+    cleaned_output = re.sub(r"```(?:json)?\s*", "", raw_output).replace("```", "").strip()
+
+    # Try direct parse first (cleanest path)
+    summary_json = None
+    try:
+        summary_json = json.loads(cleaned_output)
+        print("[DEBUG] ✅ Direct json.loads succeeded.")
+    except json.JSONDecodeError as e:
+        print(f"[DEBUG] ❌ Direct json.loads failed: {e}")
+
+    # Fallback: extract first {...} block
+    if summary_json is None:
+        match = re.search(r"\{.*\}", cleaned_output, re.DOTALL)
+        if match:
+            candidate = match.group(0)
+            print(f"[DEBUG] Trying regex-extracted JSON ({len(candidate)} chars): {candidate[:200]}...")
+            try:
+                summary_json = json.loads(candidate)
+                print("[DEBUG] ✅ Regex-extracted JSON parsed successfully.")
+            except json.JSONDecodeError as e:
+                print(f"[DEBUG] ❌ Regex-extracted JSON also failed: {e}")
+                print(f"[DEBUG] Problematic JSON candidate:\n{candidate}")
+
+    if summary_json is None:
+        print("[DEBUG] ⚠️ All JSON parse attempts failed. Returning raw_summary fallback.")
         summary_json = {"raw_summary": raw_output}
+
+    # ── DEBUG: show parsed dict keys ───────────────────────────────────────
+    print(f"[DEBUG] Parsed summary_json keys: {list(summary_json.keys())}")
+    print(f"[DEBUG] Full parsed dict: {json.dumps(summary_json, indent=2)[:800]}")
 
     summary_json = normalize_summary_data(summary_json, metadata)
 
@@ -97,7 +140,8 @@ def summarize_pdf(pdf_path, metadata=None):
     with open(output_file, "w") as f:
         json.dump(summary_json, f, indent=2)
 
-    print(f"Saved improved structured summary to {output_file}")
+    print(f"[DEBUG] Saved structured summary to {output_file}")
+    print(f"[DEBUG] Final returned keys: {list(summary_json.keys())}")
     return summary_json
 
 

@@ -58,13 +58,20 @@ class VectorStore:
             collection = self.get_collection(uid)
             insights_dict = self._ensure_insights_dict(insights)
 
-            # Build combined text for embedding
-            combined_text = "\n".join([
-                self._flatten_field(summary),
-                self._flatten_field(insights_dict.get("findings")),
-                self._flatten_field(insights_dict.get("methods")),
-                self._flatten_field(insights_dict.get("implications")),
-            ]).strip()
+            # Build combined text for embedding.
+            # Always use summary as the primary text; add insights fields if they have real content.
+            flat_summary = self._flatten_field(summary)
+            insight_parts = []
+            for key in ("findings", "methods", "implications"):
+                val = self._flatten_field(insights_dict.get(key))
+                if val and val.strip():
+                    insight_parts.append(val)
+
+            combined_text = "\n".join(
+                p for p in [flat_summary] + insight_parts if p and p.strip()
+            ).strip()
+
+            print(f"[DEBUG] add_paper_to_db combined_text length: {len(combined_text)} chars")
 
             # Generate embedding
             embedding = self.embed_text(combined_text)

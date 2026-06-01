@@ -40,6 +40,7 @@ export class FetchComponent {
   loadingPapers: number[] = Array(10).fill(null);
   isAnalyzing = false;
   progress = 0;
+  progressMessage = 'Starting analysis...';
 
   allPapers: Paper[] = [];
   papers: Paper[] = [];
@@ -248,10 +249,22 @@ export class FetchComponent {
       this.fetchService.getAnalysisStatus(uid, jobId).subscribe({
         next: (status: any) => {
           if (status.status === 'processing') {
-            this.progress = status.progress || this.progress;
+            if (status.totalChunks && status.totalChunks > 0 && status.processedChunks < status.totalChunks) {
+              const processed = status.processedChunks ?? 0;
+              if (processed > 0) {
+                // Map the chunks to 10% -> 80% of the progress bar
+                this.progress = 10 + Math.round((processed / status.totalChunks) * 70);
+              } else {
+                this.progress = status.progress ?? this.progress;
+              }
+            } else {
+              this.progress = status.progress ?? this.progress;
+            }
+            this.progressMessage = status.message || this.progressMessage;
           } else if (status.status === 'completed') {
             clearInterval(interval);
             this.progress = 100;
+            this.progressMessage = 'Done!';
             this.handleAnalysisComplete(status.result);
           } else if (status.status === 'failed') {
             clearInterval(interval);
@@ -269,19 +282,20 @@ export class FetchComponent {
   }
 
   async handleAnalysisComplete(data: any): Promise<void> {
-    const summaryObj = data.summary || {};
-    const insightsObj = data.insights || {};
+    const summaryObj = data?.summary || {};
+    const insightsObj = data?.insights || {};
     const meta = summaryObj.meta;
+
+    let navigateTo = '/library'; // fallback
 
     if (meta) {
       const mergedInsights = { ...summaryObj, ...insightsObj };
+      const paperId = meta.doc_id || meta.id;
 
       const newPaper: any = {
-        id: meta.doc_id || meta.id,
+        id: paperId,
         title: meta.title,
-        authors: Array.isArray(meta.authors)
-          ? meta.authors
-          : [meta.authors],
+        authors: Array.isArray(meta.authors) ? meta.authors : [meta.authors],
         summary: summaryObj.abstract || summaryObj.raw_summary || '',
         published: meta.published,
         pdf_url: meta.pdf_url,
@@ -292,11 +306,16 @@ export class FetchComponent {
 
       const uid = await this.authService.getUidOnce();
       await this.paperService.addToLibrary(uid, newPaper);
+
+      // Navigate directly to the paper's analysis page
+      if (paperId) navigateTo = `/analyze/${paperId}`;
     }
 
     setTimeout(() => {
       this.isAnalyzing = false;
-      this.router.navigate(['/library']);
+      this.progress = 0;
+      this.progressMessage = 'Starting analysis...';
+      this.router.navigate([navigateTo]);
     }, 500);
   }
 

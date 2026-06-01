@@ -37,7 +37,22 @@
               </option>
             </select>
           </div>
+
+          <!-- Orphan cleanup button -->
+          <button
+            id="cleanup-orphans-btn"
+            class="library__cleanup-btn"
+            (click)="cleanupOrphans()"
+            [disabled]="isCleaningUp"
+            title="Delete papers with no RAG data from ChromaDB and Firestore"
+          >
+            <span class="material-symbols-outlined">
+              {{ isCleaningUp ? 'sync' : 'auto_fix_high' }}
+            </span>
+            <span>{{ isCleaningUp ? 'Cleaning...' : 'Clean up orphans' }}</span>
+          </button>
         </div>
+
 
         <!-- Results Header -->
         <h2 class="library__results-title">Search Results</h2>
@@ -56,10 +71,19 @@
           >
             <div class="result-card__header">
               <h3 class="result-card__title">{{ paper.title }}</h3>
+              <button
+                class="result-card__delete-btn"
+                (click)="deletePaper(paper.id); $event.stopPropagation()"
+                aria-label="Delete paper"
+                title="Delete paper permanently"
+              >
+                <span class="material-symbols-outlined">delete</span>
+              </button>
             </div>
             <p class="result-card__authors">{{ paper.authors.join(', ') }} ({{ paper.published | date:'yyyy' }})</p>
             <p class="result-card__abstract">{{ paper.summary | slice:0:200 }}...</p>
           </div>
+
         </div>
       </div>
 

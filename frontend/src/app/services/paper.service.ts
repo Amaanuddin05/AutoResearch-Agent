@@ -127,6 +127,32 @@ export class PaperService {
     });
   }
 
+  /**
+   * Find and delete all orphan papers (no enriched chunks) from ChromaDB,
+   * then mirror-delete each one from Firestore.
+   * Returns the list of deleted doc_ids.
+   */
+  cleanupOrphans(uid: string): Observable<{ deleted_ids: string[]; kept_ids: string[]; message: string }> {
+    return this.http.delete<{ deleted_ids: string[]; kept_ids: string[]; message: string }>(
+      `${this.apiUrl}/cleanup_orphans`,
+      { params: { uid } }
+    ).pipe(
+      tap(async (res) => {
+        // Mirror-delete each orphan from Firestore
+        for (const id of res.deleted_ids) {
+          try {
+            await this.firestoreService.deletePaper(uid, id);
+          } catch (e) {
+            console.warn(`⚠️ Could not delete orphan ${id} from Firestore:`, e);
+          }
+        }
+        // Update local in-memory state
+        const current = this.getPapers().filter(p => !res.deleted_ids.includes(p.id));
+        this.papersSubject.next(current);
+      })
+    );
+  }
+
   // --- Helpers ---
 
   private normalizePaper(raw: any): Paper {

@@ -147,9 +147,23 @@ def summarize_text(data: TextData):
 
 
 @app.post("/structured_summary")
-def summarize_pdf(data: PDFData):
+def summarize_pdf(data: PDFData, job_id: str = None):
+    """
+    Summarize a PDF. If job_id is provided, updates analysis_jobs[job_id] with
+    per-chunk progress so the frontend can show a live bar.
+    Progress range used: 10% (start) → 55% (all chunks done) → 60% (JSON merged).
+    """
     path = data.path
     metadata = data.metadata or {}
+
+    def _set_progress(pct: int, msg: str, processed: int = None, total: int = None):
+        if job_id and job_id in analysis_jobs:
+            analysis_jobs[job_id]["progress"] = pct
+            analysis_jobs[job_id]["message"] = msg
+            if processed is not None:
+                analysis_jobs[job_id]["processedChunks"] = processed
+            if total is not None:
+                analysis_jobs[job_id]["totalChunks"] = total
 
     if not path or not os.path.exists(path):
         return {"error": "Invalid or missing PDF path"}
@@ -161,21 +175,66 @@ def summarize_pdf(data: PDFData):
     if not full_text.strip():
         return {"error": "No readable text extracted from PDF"}
 
-    chunk_size = 4000
-    chunks = [full_text[i:i + chunk_size] for i in range(0, len(full_text), chunk_size)]
-    print(f"📄 Total chunks: {len(chunks)}")
+    # Larger chunks = fewer LLM calls = less Ollama context exhaustion
+    CHUNK_SIZE = 6000
+    MAX_CHUNKS = 8      # hard cap: never call the LLM more than 8 times per paper
+    chunks = [full_text[i:i + CHUNK_SIZE] for i in range(0, len(full_text), CHUNK_SIZE)]
+    chunks = chunks[:MAX_CHUNKS]  # drop tail chunks if paper is very long
+    total_chunks = len(chunks)
+    print(f"📄 Total chunks (capped at {MAX_CHUNKS}): {total_chunks}")
 
+    # Progress band for chunking: 10% → 90% (80 points spread across chunks)
+    CHUNK_START = 10
+    CHUNK_END   = 90
+
+    import time
     partial_summaries = []
     for idx, chunk in enumerate(chunks, 1):
-        print(f"⚙️ Summarizing chunk {idx}/{len(chunks)}...")
+        chunk_pct = CHUNK_START + int((idx - 1) / total_chunks * (CHUNK_END - CHUNK_START))
+        _set_progress(
+            chunk_pct,
+            f"Summarizing chunk {idx} of {total_chunks}...",
+            processed=idx - 1,
+            total=total_chunks
+        )
+        print(f"⚙️ Summarizing chunk {idx}/{total_chunks}... (progress={chunk_pct}%)")
         prompt = f"Summarize the following section of a research paper in academic tone:\n\n{chunk}"
         summary = llm.invoke(prompt)
         partial_summaries.append(summary.strip())
+        _set_progress(
+            CHUNK_START + int(idx / total_chunks * (CHUNK_END - CHUNK_START)),
+            f"Summarizing chunk {idx} of {total_chunks}...",
+            processed=idx,
+            total=total_chunks
+        )
+        if idx < total_chunks:   # no sleep after the last chunk
+            time.sleep(1)       # give Ollama breathing room between calls
 
+    # ── DEBUG: inspect chunk results ──────────────────────────────────────
+    print(f"[DEBUG] Total chunk summaries collected: {len(partial_summaries)}")
+    for i, s in enumerate(partial_summaries):
+        print(f"[DEBUG] Chunk {i+1} summary ({len(s)} chars): {s[:120]}...")
+
+    if job_id and job_id in analysis_jobs:
+        analysis_jobs[job_id]["processedChunks"] = 0
+        analysis_jobs[job_id]["totalChunks"] = 0
+
+    _set_progress(CHUNK_END, "Merging summaries into structured JSON...")
     combined_summary = "\n".join(partial_summaries)
+    print(f"[DEBUG] Combined summary length before truncation: {len(combined_summary)} chars")
+
+    # Cap combined_summary to 5000 chars — leaves room for the prompt instructions
+    MAX_MERGE_CHARS = 5000
+    if len(combined_summary) > MAX_MERGE_CHARS:
+        print(f"[DEBUG] ⚠️ Truncating combined_summary from {len(combined_summary)} to {MAX_MERGE_CHARS} chars")
+        combined_summary = combined_summary[:MAX_MERGE_CHARS]
+
+    print(f"[DEBUG] FINAL MERGED SUMMARY (first 500 chars):\n{combined_summary[:500]}")
+
     final_prompt = f"""
     You are an expert AI research summarizer.
-    Combine all partial summaries into this JSON schema:
+    Combine all partial summaries into this JSON schema.
+    Output raw JSON only — no markdown, no code fences, no explanation.
     {{
         "abstract": "...",
         "objectives": ["..."],
@@ -184,20 +243,29 @@ def summarize_pdf(data: PDFData):
         "limitations": "...",
         "key_points": ["..."]
     }}
-    Ensure valid JSON only.
 
     Summaries:
     {combined_summary}
     """
     final_summary = llm.invoke(final_prompt)
 
+    _set_progress(92, "Parsing structured summary...")
+
+    # ── DEBUG: raw LLM output ──────────────────────────────────────────────
+    print(f"[DEBUG] RAW FINAL LLM OUTPUT:\n{final_summary}")
+
+    # Strip markdown fences before parsing
+    cleaned_final = re.sub(r"```(?:json)?\s*", "", final_summary).replace("```", "").strip()
+
     # Use robust JSON extraction
-    extracted = extract_json_from_text(final_summary)
+    extracted = extract_json_from_text(cleaned_final)
     if extracted is not None:
         summary_json = extracted
+        print(f"[DEBUG] ✅ JSON extracted successfully. Keys: {list(summary_json.keys())}")
     else:
-        # fallback to raw text
-        summary_json = {"raw_summary": final_summary}
+        print(f"[DEBUG] ⚠️ JSON extraction failed. Storing as raw_summary.")
+        # fallback: store full combined_summary as plain text so document is not empty
+        summary_json = {"raw_summary": combined_summary or final_summary}
 
     summary_json["meta"] = {
         "title": metadata.get("title", os.path.basename(path).replace(".pdf", "")),
@@ -334,7 +402,13 @@ analysis_jobs = {}
 def process_analysis(job_id: str, uid: str, data: PDFData, background_tasks: BackgroundTasks):
     try:
         print(f"🚀 Starting background analysis for job {job_id} (User: {uid})...")
-        analysis_jobs[job_id] = {"status": "processing", "progress": 0, "message": "Starting..."}
+        analysis_jobs[job_id] = {
+            "status": "processing", 
+            "progress": 0, 
+            "message": "Starting...",
+            "processedChunks": 0,
+            "totalChunks": 0
+        }
         
         pdf_path = data.path
         if pdf_path.startswith("http"):
@@ -358,35 +432,81 @@ def process_analysis(job_id: str, uid: str, data: PDFData, background_tasks: Bac
         except Exception as e:
             print(f"⚠️ Failed to extract text: {e}")
 
-        # Summarize
-        analysis_jobs[job_id]["message"] = "Summarizing paper..."
-        analysis_jobs[job_id]["progress"] = 20
-        
-        # We need to modify summarize_pdf to report progress or just estimate
-        # For now, we'll just call it synchronously as it was
-        summary_data = summarize_pdf(data)
+        # Summarize — pass job_id so summarize_pdf can emit per-chunk progress
+        analysis_jobs[job_id]["message"] = "Starting summarization..."
+        analysis_jobs[job_id]["progress"] = 10
+        summary_data = summarize_pdf(data, job_id=job_id)
         
         if "error" in summary_data:
             analysis_jobs[job_id] = {"status": "failed", "error": summary_data["error"]}
             return
 
-        analysis_jobs[job_id]["progress"] = 60
+        analysis_jobs[job_id]["progress"] = 94
         analysis_jobs[job_id]["message"] = "Extracting insights..."
 
-        # Build normalized summary text
-        summary_text = (
-            normalize_text(summary_data.get("abstract", "")) + "\n" +
-            normalize_text(summary_data.get("objectives", "")) + "\n" +
-            normalize_text(summary_data.get("methodology", "")) + "\n" +
-            normalize_text(summary_data.get("findings", "")) + "\n" +
-            normalize_text(summary_data.get("limitations", "")) + "\n" +
-            normalize_text(summary_data.get("key_points", []))
-        )
+        # Build normalized summary text from structured fields.
+        # If the LLM returned N/A defaults (parse failed), fall back to raw_summary.
+        PLACEHOLDER = {"N/A", "n/a", "", None}
 
-        result = extract_insights(SummaryData(summary=summary_text))
-        insights = result.get("insights", result)
+        abstract    = summary_data.get("abstract", "")
+        objectives  = summary_data.get("objectives", [])
+        methodology = summary_data.get("methodology", "")
+        findings    = summary_data.get("findings", "")
+        limitations = summary_data.get("limitations", "")
+        key_points  = summary_data.get("key_points", [])
+        raw_summary = summary_data.get("raw_summary", "")
 
-        analysis_jobs[job_id]["progress"] = 80
+        structured_parts = [
+            normalize_text(abstract),
+            normalize_text(objectives),
+            normalize_text(methodology),
+            normalize_text(findings),
+            normalize_text(limitations),
+            normalize_text(key_points),
+        ]
+        summary_text = "\n".join(
+            p for p in structured_parts if p and p.strip() not in PLACEHOLDER
+        ).strip()
+
+        # ── DEBUG ────────────────────────────────────────────────────────
+        print(f"[DEBUG] summary_data keys: {list(summary_data.keys())}")
+        print(f"[DEBUG] abstract  : {str(abstract)[:120]}")
+        print(f"[DEBUG] objectives: {str(objectives)[:120]}")
+        print(f"[DEBUG] methodology: {str(methodology)[:120]}")
+        print(f"[DEBUG] findings  : {str(findings)[:120]}")
+        print(f"[DEBUG] summary_text length: {len(summary_text)} chars")
+        print(f"[DEBUG] summary_text (first 400): {summary_text[:400]}")
+
+        # If all structured fields were N/A placeholders, use raw_summary
+        if not summary_text and raw_summary:
+            print("[DEBUG] ⚠️ Structured fields empty — falling back to raw_summary for insight input")
+            summary_text = normalize_text(raw_summary)
+
+        if not summary_text:
+            print("[DEBUG] ❌ summary_text is still empty after fallback — skipping insight agent, using empty defaults")
+            insights = {
+                "findings": [],
+                "methods": [],
+                "datasets": [],
+                "citations": [],
+                "implications": []
+            }
+        else:
+            result = extract_insights(SummaryData(summary=summary_text))
+            insights = result.get("insights", result)
+            # Guard: if insight agent returned an error dict, replace with safe defaults
+            if isinstance(insights, dict) and "error" in insights:
+                print(f"[DEBUG] ⚠️ Insight agent returned error: {insights['error']} — using empty defaults")
+                insights = {
+                    "findings": [],
+                    "methods": [],
+                    "datasets": [],
+                    "citations": [],
+                    "implications": []
+                }
+        print(f"[DEBUG] insights result: {str(insights)[:300]}")
+
+        analysis_jobs[job_id]["progress"] = 96
         analysis_jobs[job_id]["message"] = "Storing in database..."
 
         doc_id = summary_data["meta"].get("id") or summary_data["meta"].get("doc_id")
@@ -407,14 +527,15 @@ def process_analysis(job_id: str, uid: str, data: PDFData, background_tasks: Bac
 
         # Trigger enrichment
         if full_text and summary_text and summary_data["meta"].get("doc_id"):
-            analysis_jobs[job_id]["message"] = "Enriching content..."
-            # Run enrichment synchronously here or spawn another task? 
-            # Since we are already in a background task, we can run it here or just let it be.
-            # But to show 100% only when done, let's run it here.
+            analysis_jobs[job_id]["message"] = "Enriching content (background)..."
+            analysis_jobs[job_id]["progress"] = 98
             enrich_paper(uid, summary_text, insights, full_text, summary_data["meta"])
 
         analysis_jobs[job_id]["progress"] = 100
         analysis_jobs[job_id]["status"] = "completed"
+        analysis_jobs[job_id]["message"] = "Done!"
+        analysis_jobs[job_id]["processedChunks"] = 0
+        analysis_jobs[job_id]["totalChunks"] = 0
         analysis_jobs[job_id]["result"] = {"summary": summary_data, "insights": insights}
         print(f"✅ Job {job_id} completed.")
 
@@ -433,7 +554,7 @@ def analyze_paper(data: PDFData, background_tasks: BackgroundTasks):
 
 
 @app.get("/analysis_status/{job_id}")
-def get_analysis_status(job_id: str):
+async def get_analysis_status(job_id: str):
     job = analysis_jobs.get(job_id)
     if not job:
         return {"status": "not_found"}
@@ -549,7 +670,102 @@ def get_enriched_paper(paper_id: str, uid: str):
         return {"error": str(e)}
 
 
-# =============== 5️⃣ DEBUG ENDPOINT ===============
+# =============== 5️⃣ CLEANUP ORPHANS ===============
+
+@app.delete("/cleanup_orphans")
+def cleanup_orphans(uid: str):
+    """
+    Find and delete all paper entries in ChromaDB that have zero enriched chunks.
+    These are papers where the enrichment pipeline failed or never ran, so RAG
+    always falls back to the general LLM with 'No relevant chunks found'.
+
+    Returns:
+      - deleted_ids: list of doc_ids removed from ChromaDB
+      - kept_ids:    list of doc_ids that had chunks and were kept
+    """
+    if not uid:
+        raise HTTPException(400, "uid is required")
+
+    try:
+        collection = vector_store.get_collection(uid)
+
+        # 1. Fetch every paper entry for this user
+        paper_results = collection.get(
+            where={"entry_type": "paper"},
+            include=["metadatas", "documents"]
+        )
+
+        paper_ids   = paper_results.get("ids", [])
+        paper_metas = paper_results.get("metadatas", [])
+
+        if not paper_ids:
+            return {"message": "No papers found for this user.", "deleted_ids": [], "kept_ids": []}
+
+        deleted_ids = []
+        kept_ids    = []
+
+        for i, pid in enumerate(paper_ids):
+            meta    = paper_metas[i] if i < len(paper_metas) else {}
+            doc_id  = meta.get("doc_id") or pid
+            title   = meta.get("title", "Untitled")
+
+            # 2. Count enriched chunks linked to this paper
+            try:
+                chunk_results = collection.get(
+                    where={"$and": [
+                        {"entry_type": "chunk"},
+                        {"doc_id": doc_id}
+                    ]},
+                    include=[]   # only need IDs — no document content needed
+                )
+                chunk_count = len(chunk_results.get("ids", []))
+            except Exception as e:
+                print(f"⚠️ Could not count chunks for {doc_id}: {e}")
+                chunk_count = 0
+
+            if chunk_count == 0:
+                # 3. Orphan — delete the paper entry itself from ChromaDB
+                print(f"🗑️ Orphan detected: '{title}' (doc_id={doc_id}, chroma_id={pid}) → deleting")
+                try:
+                    # Delete by ChromaDB internal ID
+                    collection.delete(ids=[pid])
+                    # Also sweep by doc_id metadata in case of duplicate entries
+                    collection.delete(where={"doc_id": doc_id})
+                except Exception as e:
+                    print(f"⚠️ Failed to delete orphan {doc_id}: {e}")
+                deleted_ids.append(doc_id)
+            else:
+                print(f"✅ Kept: '{title}' (doc_id={doc_id}, chunks={chunk_count})")
+                kept_ids.append(doc_id)
+
+        return {
+            "message": f"Cleanup complete. {len(deleted_ids)} orphan(s) removed from ChromaDB.",
+            "deleted_ids": deleted_ids,
+            "kept_ids":    kept_ids
+        }
+
+    except Exception as e:
+        print(f"❌ cleanup_orphans error: {e}")
+        raise HTTPException(500, str(e))
+
+
+# =============== 6️⃣ DEBUG ENDPOINT ===============
+
+
+@app.get("/debug_job/{job_id}")
+def debug_job(job_id: str):
+    """Debug endpoint: returns the full raw job dict for inspection."""
+    job = analysis_jobs.get(job_id)
+    if not job:
+        return {"status": "not_found", "job_id": job_id}
+    import json as _json
+    # Pretty print to terminal as well
+    print(f"\n{'='*60}")
+    print(f"[DEBUG] Full job result for {job_id}:")
+    print(_json.dumps(job, indent=2, default=str))
+    print(f"{'='*60}\n")
+    return job
+
 
 @app.get("/debug_list_papers")
 def debug_list_papers(uid: str, limit: int = 10):

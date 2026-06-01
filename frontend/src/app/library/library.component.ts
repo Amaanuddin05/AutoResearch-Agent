@@ -26,6 +26,7 @@ export class LibraryComponent implements OnInit {
   savedPapers: Paper[] = [];
   filteredPapers: Paper[] = [];
   selectedPaper: Paper | null = null;
+  isCleaningUp = false;
 
   constructor(
     private paperService: PaperService,
@@ -85,17 +86,56 @@ export class LibraryComponent implements OnInit {
   }
 
   async deletePaper(paperId: string): Promise<void> {
-    if (!confirm('Are you sure you want to remove this paper from your library?')) return;
-    
+    if (!confirm('Are you sure you want to delete this paper permanently?')) return;
+
     const uid = await this.authService.getUidOnce();
+
+    // 1. Remove from Firestore + local BehaviorSubject
     await this.paperService.removeFromLibrary(uid, paperId);
-    this.loadPapers(); // Refresh list
-    
-    // Also try to delete from backend
-    this.paperService.deletePaperFromDB(uid, paperId).subscribe();
+
+    // 2. Delete from ChromaDB backend
+    this.paperService.deletePaperFromBackend(uid, paperId).subscribe({
+      next: (res) => console.log('🗑️ Deleted from ChromaDB:', res),
+      error: (err) => console.warn('⚠️ ChromaDB delete failed (may already be gone):', err)
+    });
+
+    // 3. Update local UI lists immediately
+    this.savedPapers   = this.savedPapers.filter(p => p.id !== paperId);
+    this.filteredPapers = this.filteredPapers.filter(p => p.id !== paperId);
+
+    // 4. Clear sidebar if the deleted paper was selected
+    if (this.selectedPaper?.id === paperId) {
+      this.selectedPaper = this.filteredPapers[0] ?? null;
+    }
   }
 
   viewPDF(url: string | null): void {
     if (url) window.open(url, '_blank');
   }
-}
+
+  async cleanupOrphans(): Promise<void> {
+    const uid = await this.authService.getUidOnce();
+    if (!uid) return;
+
+    this.isCleaningUp = true;
+    this.paperService.cleanupOrphans(uid).subscribe({
+      next: (res) => {
+        this.isCleaningUp = false;
+        // Remove orphans from local lists
+        this.savedPapers    = this.savedPapers.filter(p => !res.deleted_ids.includes(p.id));
+        this.filteredPapers = this.filteredPapers.filter(p => !res.deleted_ids.includes(p.id));
+        if (this.selectedPaper && res.deleted_ids.includes(this.selectedPaper.id)) {
+          this.selectedPaper = this.filteredPapers[0] ?? null;
+        }
+        const msg = res.deleted_ids.length > 0
+          ? `🗑️ Removed ${res.deleted_ids.length} orphan paper(s) with no RAG data.`
+          : '✅ No orphan papers found. Library is clean!';
+        alert(msg);
+      },
+      error: (err) => {
+        this.isCleaningUp = false;
+        console.error('⚠️ Cleanup failed:', err);
+        alert('Cleanup failed. Check console for details.');
+      }
+    });
+  }

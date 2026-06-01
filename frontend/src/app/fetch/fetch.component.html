@@ -202,13 +202,15 @@
           <div class="loader-spinner">
             <span class="material-symbols-outlined">autorenew</span>
           </div>
-          <div class="loader-text">Analyzing Paper...</div>
+          <div class="loader-title">Analyzing Paper</div>
+          <div class="loader-step">{{ progressMessage }}</div>
           <div class="progress-container">
             <div class="progress-bar" [style.width.%]="progress"></div>
           </div>
           <div class="progress-value">{{ progress }}%</div>
         </div>
       </div>
+
 
     </div>
   </div>

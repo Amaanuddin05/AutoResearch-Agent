@@ -818,11 +818,20 @@
   }
 }
 
-.loader-text {
-  font-size: 1.125rem;
-  font-weight: 600;
+.loader-title {
+  font-size: 1.25rem;
+  font-weight: 700;
   color: #0f172a;
+  margin-bottom: 0.375rem;
+}
+
+.loader-step {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #64748b;
   margin-bottom: 1.25rem;
+  min-height: 1.25rem;  /* prevent layout shift when text changes */
+  transition: opacity 0.2s ease;
 }
 
 .progress-container {
@@ -1068,8 +1077,12 @@
     color: #818cf8;
   }
 
-  .loader-text {
+  .loader-title {
     color: white;
+  }
+
+  .loader-step {
+    color: #94a3b8;
   }
 
   .progress-container {
