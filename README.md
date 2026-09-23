@@ -773,14 +773,11 @@ SOFTWARE.
 For questions, issues, or feature requests:
 
 - 🐛 [Open an issue](https://github.com/Amaanuddin05/AutoResearch-Agent/issues)
-- 💬 [Start a discussion](https://github.com/Amaanuddin05/AutoResearch-Agent/discussions)
-- 📧 Contact: [your-email@example.com]
+- 📧 Contact: amaanuddin0501@gmail.com
 
 ---
 
 <div align="center">
-
-**Built with ❤️ by researchers, for researchers**
 
 ⭐ Star this repo if you find it useful!
 
